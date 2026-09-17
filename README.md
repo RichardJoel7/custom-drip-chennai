@@ -64,8 +64,9 @@ Copy `.env.example` to `.env.local` and fill in your Supabase project's values:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Project Settings → API → Project API keys → `anon` `public` | Public — RLS protects data |
 | `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → API → Project API keys → `service_role` | **Secret.** Server-only. Never expose to the browser. Only used in `src/lib/supabase/admin.ts`, checkout, and order tracking. |
 | `NEXT_PUBLIC_SITE_URL` | Your deployed domain (e.g. `https://customdripchennai.in`) | Used for SEO/sitemap/OG tags. Use `http://localhost:3000` locally. |
-| `RESEND_API_KEY` | [resend.com](https://resend.com) → API Keys | Optional. Enables automatic "payment confirmed" and "order shipped" emails. App works fine without it — emails are just skipped. |
-| `RESEND_FROM_EMAIL` | Your verified sender, e.g. `Custom Drip Chennai <orders@customdripchennai.in>` | Optional. Defaults to Resend's shared `onboarding@resend.dev` sender if unset. |
+| `GMAIL_USER` | The Gmail/Workspace address emails are sent from, e.g. `customdripchennai@gmail.com` | Optional. Enables automatic "payment confirmed" and "order shipped" emails. App works fine without it — emails are just skipped. |
+| `GMAIL_APP_PASSWORD` | [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) (requires 2-Step Verification on that account) | Optional, required alongside `GMAIL_USER`. Never your real Gmail login password. |
+| `GMAIL_FROM_NAME` | Any display name, e.g. `Custom Drip Chennai` | Optional. Defaults to "Custom Drip Chennai". The address itself always matches `GMAIL_USER` — Gmail blocks sending from any other address. |
 
 ## 1. Create a Supabase Project
 
@@ -132,9 +133,13 @@ Open [http://localhost:3000](http://localhost:3000) for the storefront and [http
 
 Customers automatically get an email when you confirm their payment, and another when you mark their order shipped (with courier + tracking number). This works without a customer account — the email just goes to whatever address they entered at checkout (email is a required field for exactly this reason).
 
-1. Create a free account at [resend.com](https://resend.com) (3,000 emails/month free).
-2. Create an API key and set `RESEND_API_KEY` in your environment.
-3. To send from your own domain instead of Resend's shared address, verify your domain in Resend and set `RESEND_FROM_EMAIL`.
+Emails send via Gmail SMTP through an **App Password** — a special password just for this app, separate from the account's real login password. Free, no extra service to sign up for.
+
+1. Log into the sending Gmail/Workspace account (e.g. `customdripchennai@gmail.com`) and turn on **2-Step Verification** if it isn't already (Google Account → Security) — this is required before Google will let you create an App Password.
+2. Go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords), name it something like "Custom Drip Chennai Website", and generate it. Copy the 16-character password shown (spaces don't matter, Google usually shows it in 4 groups of 4).
+3. Set `GMAIL_USER` to that Gmail address and `GMAIL_APP_PASSWORD` to the generated password in your environment.
+
+Regular Gmail accounts cap out at 500 emails/day (2,000/day on Google Workspace) — far more than a small store needs. The first time the app sends through a new App Password, Google may flag the sign-in as unusual and prompt a one-time "was this you?" confirmation in the account's security settings — after that it's routine.
 
 If you skip this entirely, the app still works exactly the same — payment confirmation and shipping just won't trigger an email. Nothing else depends on it.
 
@@ -156,7 +161,7 @@ Covered in full, in plain language, in [ADMIN_GUIDE.md](./ADMIN_GUIDE.md). Short
 
 The order workflow is deliberately minimal for a two-person team: **New → Payment Confirmed → Shipped → Delivered** (or **Cancelled**).
 
-**Admin → Orders** lists every order. Opening one shows the UPI transaction ID the customer entered, with **Confirm Payment** / **Reject Payment** buttons — confirming immediately emails the customer (if Resend is configured) saying their payment is confirmed and their order ships in 3–7 business days. **Admin → Print Queue** shows every payment-confirmed order still awaiting shipment, for daily printing/packing. When an order is ready to go, open it, fill in **Shipment Details** (courier + tracking number) and save — this moves the order to "Shipped", emails the customer their tracking info, and updates their `/track/[token]` page. There's no need to click through intermediate "Processing/Printing/Packed" states — the status dropdown intentionally won't let you jump to "Shipped" directly, precisely so shipping always goes through that form and the customer always gets notified.
+**Admin → Orders** lists every order. Opening one shows the UPI transaction ID the customer entered, with **Confirm Payment** / **Reject Payment** buttons — confirming immediately emails the customer (if Gmail sending is configured) saying their payment is confirmed and their order ships in 3–7 business days. **Admin → Print Queue** shows every payment-confirmed order still awaiting shipment, for daily printing/packing. When an order is ready to go, open it, fill in **Shipment Details** (courier + tracking number) and save — this moves the order to "Shipped", emails the customer their tracking info, and updates their `/track/[token]` page. There's no need to click through intermediate "Processing/Printing/Packed" states — the status dropdown intentionally won't let you jump to "Shipped" directly, precisely so shipping always goes through that form and the customer always gets notified.
 
 ## 10. Changing Shipping Fee / Free Shipping Threshold
 

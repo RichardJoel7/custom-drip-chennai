@@ -1,5 +1,5 @@
 import "server-only";
-import { getResendClient, EMAIL_FROM } from "@/lib/email/resend";
+import { getEmailTransporter, getEmailFrom } from "@/lib/email/gmail";
 import { formatPrice } from "@/lib/utils/format";
 import type { Order } from "@/types";
 
@@ -35,16 +35,17 @@ type NotifiableOrder = Pick<
 >;
 
 /**
- * Fire-and-forget by design: a Resend outage or missing API key should never block an admin
- * from confirming a payment or marking an order shipped. Failures are logged, not thrown.
+ * Fire-and-forget by design: a Gmail outage or missing credentials should never block an
+ * admin from confirming a payment or marking an order shipped. Failures are logged, not
+ * thrown.
  */
 export async function sendPaymentConfirmedEmail(order: NotifiableOrder): Promise<void> {
-  const resend = getResendClient();
-  if (!resend) return;
+  const transporter = getEmailTransporter();
+  if (!transporter) return;
 
   try {
-    await resend.emails.send({
-      from: EMAIL_FROM,
+    await transporter.sendMail({
+      from: getEmailFrom(),
       to: order.email,
       subject: `Payment confirmed — Order ${order.order_number}`,
       html: emailShell(
@@ -65,12 +66,12 @@ export async function sendPaymentConfirmedEmail(order: NotifiableOrder): Promise
 }
 
 export async function sendOrderShippedEmail(order: NotifiableOrder): Promise<void> {
-  const resend = getResendClient();
-  if (!resend) return;
+  const transporter = getEmailTransporter();
+  if (!transporter) return;
 
   try {
-    await resend.emails.send({
-      from: EMAIL_FROM,
+    await transporter.sendMail({
+      from: getEmailFrom(),
       to: order.email,
       subject: `Your order has shipped — ${order.order_number}`,
       html: emailShell(
