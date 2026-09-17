@@ -43,11 +43,23 @@ export async function sendPaymentConfirmedEmail(order: NotifiableOrder): Promise
   const transporter = getEmailTransporter();
   if (!transporter) return;
 
+  const trackUrl = `${siteUrl}/track/${order.tracking_token}`;
+
   try {
     await transporter.sendMail({
       from: getEmailFrom(),
       to: order.email,
       subject: `Payment confirmed — Order ${order.order_number}`,
+      text: [
+        `Hi ${order.full_name},`,
+        ``,
+        `We've confirmed your payment of ${formatPrice(order.total)} for order ${order.order_number}.`,
+        `Your tee will be printed and shipped within 3-7 business days. We'll email you again as soon as it ships.`,
+        ``,
+        `Track your order: ${trackUrl}`,
+        ``,
+        `Questions? Message us on Instagram — we reply fastest there.`,
+      ].join("\n"),
       html: emailShell(
         "Payment Confirmed ✓",
         `
@@ -69,11 +81,26 @@ export async function sendOrderShippedEmail(order: NotifiableOrder): Promise<voi
   const transporter = getEmailTransporter();
   if (!transporter) return;
 
+  const trackUrl = `${siteUrl}/track/${order.tracking_token}`;
+
   try {
     await transporter.sendMail({
       from: getEmailFrom(),
       to: order.email,
       subject: `Your order has shipped — ${order.order_number}`,
+      text: [
+        `Hi ${order.full_name},`,
+        ``,
+        `Order ${order.order_number} is on its way!`,
+        order.courier_name ? `Courier: ${order.courier_name}` : null,
+        order.courier_tracking_number ? `Tracking Number: ${order.courier_tracking_number}` : null,
+        ``,
+        `Track your shipment: ${trackUrl}`,
+        ``,
+        `Questions? Message us on Instagram — we reply fastest there.`,
+      ]
+        .filter((line) => line !== null)
+        .join("\n"),
       html: emailShell(
         "Your Order Has Shipped 📦",
         `
