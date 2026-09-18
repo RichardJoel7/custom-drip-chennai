@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LinkButton } from "@/components/ui/button";
+import { InstagramIcon, WhatsAppIcon } from "@/components/icons/social-icons";
 import { getSettings } from "@/services/settings";
 
 export const metadata: Metadata = {
@@ -20,6 +21,7 @@ export default async function ContactPage() {
 
       <div className="mt-8 space-y-4">
         <LinkButton href={settings.instagram_url} external size="lg" className="w-full">
+          <InstagramIcon className="h-5 w-5" />
           Message Us on Instagram
         </LinkButton>
 
@@ -31,6 +33,7 @@ export default async function ContactPage() {
             size="lg"
             className="w-full"
           >
+            <WhatsAppIcon className="h-5 w-5" />
             WhatsApp Us
           </LinkButton>
         )}

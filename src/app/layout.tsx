@@ -1,17 +1,10 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
-import { Anton } from "next/font/google";
+import { Mona_Sans } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/components/cart/cart-context";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const anton = Anton({
-  variable: "--font-anton",
-  weight: "400",
+const monaSans = Mona_Sans({
+  variable: "--font-mona-sans",
   subsets: ["latin"],
 });
 
@@ -40,7 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${anton.variable} h-full antialiased`}
+      className={`${monaSans.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <CartProvider>{children}</CartProvider>

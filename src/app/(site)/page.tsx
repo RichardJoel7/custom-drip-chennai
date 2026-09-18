@@ -1,37 +1,45 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import Image from "next/image";
 import { LinkButton } from "@/components/ui/button";
+import { InstagramIcon } from "@/components/icons/social-icons";
 import { ProductGrid } from "@/components/products/product-grid";
 import { getFeaturedProducts } from "@/services/products";
 import { getSettings } from "@/services/settings";
 
 export default async function HomePage() {
   const [products, settings] = await Promise.all([getFeaturedProducts(8), getSettings()]);
-  const heroImage = products[0]?.product_images.find((i) => i.is_main) ?? products[0]?.product_images[0];
+  const fallbackHeroImage = products[0]?.product_images.find((i) => i.is_main) ?? products[0]?.product_images[0];
+
+  // Prefer a brand hero photo dropped at public/images/hero.jpg; fall back to the first
+  // featured product's photo, then to a flat background if neither exists yet.
+  const hasCustomHero = existsSync(path.join(process.cwd(), "public", "images", "hero.jpg"));
+  const heroSrc = hasCustomHero ? "/images/hero.jpg" : fallbackHeroImage?.image_url;
 
   return (
     <div>
       {/* HERO */}
-      <section className="relative flex min-h-[85vh] items-end overflow-hidden bg-foreground text-background sm:min-h-[90vh]">
-        {heroImage && (
-          <Image
-            src={heroImage.image_url}
-            alt=""
-            fill
-            priority
-            className="object-cover opacity-70"
-          />
-        )}
-        <div className="relative z-10 w-full px-4 pb-12 sm:px-6 sm:pb-20">
-          <h1 className="font-display text-5xl leading-[0.95] tracking-wide sm:text-7xl lg:text-8xl">
-            WEAR YOUR
-            <br />
-            DRIP.
-          </h1>
-          <p className="mt-4 max-w-md text-base text-background/85 sm:text-lg">
+      <section className="relative -mt-16 flex min-h-[90vh] items-end overflow-hidden bg-foreground text-white sm:min-h-screen">
+        {heroSrc && <Image src={heroSrc} alt="" fill priority className="object-cover" />}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/50" />
+
+        <div className="relative z-10 w-full px-4 pb-10 text-center sm:px-6 sm:pb-16">
+          <div className="relative">
+            <span
+              aria-hidden="true"
+              className="text-outline-white font-sans pointer-events-none absolute inset-0 flex translate-y-2 select-none items-center justify-center text-[clamp(3.25rem,14vw,10.5rem)] font-black leading-[0.9] tracking-tight [font-stretch:85%] sm:translate-y-3"
+            >
+              DRIPPIN&apos;
+            </span>
+            <h1 className="relative font-sans text-[clamp(3.25rem,14vw,10.5rem)] font-black leading-[0.9] tracking-tight [font-stretch:85%]">
+              DRIPPIN&apos;
+            </h1>
+          </div>
+          <p className="mx-auto mt-4 max-w-md text-base text-white/85 sm:text-lg">
             Original graphic tees from Custom Drip Chennai.
           </p>
-          <LinkButton href="/shop" variant="secondary" size="lg" className="mt-6">
-            Shop the Drop
+          <LinkButton href="/shop" variant="glass" size="sm" className="mt-6">
+            Shop
           </LinkButton>
         </div>
       </section>
@@ -71,6 +79,7 @@ export default async function HomePage() {
           New drops, behind-the-scenes prints, and customer fits — first on Instagram.
         </p>
         <LinkButton href={settings.instagram_url} variant="primary" size="lg" className="mt-6">
+          <InstagramIcon className="h-5 w-5" />
           Follow Us on Instagram
         </LinkButton>
       </section>

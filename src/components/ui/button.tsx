@@ -3,25 +3,26 @@ import type { ButtonHTMLAttributes } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
 
-type Variant = "primary" | "secondary" | "outline" | "ghost" | "danger";
+type Variant = "primary" | "secondary" | "outline" | "ghost" | "danger" | "glass";
 type Size = "md" | "lg" | "sm";
 
 const variantClasses: Record<Variant, string> = {
-  primary: "bg-foreground text-background hover:opacity-90",
-  secondary: "bg-accent text-accent-foreground hover:opacity-90",
+  primary: "bg-foreground text-background shadow-md shadow-black/20 hover:opacity-90",
+  secondary: "bg-accent text-accent-foreground shadow-md shadow-black/10 hover:opacity-90",
   outline: "border border-foreground bg-transparent text-foreground hover:bg-foreground hover:text-background",
   ghost: "bg-transparent text-foreground hover:bg-muted",
-  danger: "bg-danger text-white hover:opacity-90",
+  danger: "bg-danger text-white shadow-md shadow-black/20 hover:opacity-90",
+  glass: "glass-light text-foreground shadow-lg shadow-black/5 hover:bg-white/70",
 };
 
 const sizeClasses: Record<Size, string> = {
-  sm: "h-9 px-3 text-sm",
-  md: "h-12 px-5 text-sm",
-  lg: "h-14 px-8 text-base",
+  sm: "h-9 px-4 text-sm",
+  md: "h-12 px-6 text-sm",
+  lg: "h-14 px-9 text-base",
 };
 
 const base =
-  "inline-flex items-center justify-center gap-2 font-semibold uppercase tracking-wide transition-colors disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap";
+  "inline-flex items-center justify-center gap-2 rounded-full font-semibold uppercase tracking-wide transition-all active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none disabled:active:scale-100 whitespace-nowrap";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;

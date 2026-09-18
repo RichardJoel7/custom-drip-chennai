@@ -29,7 +29,7 @@ export default async function TrackOrderPage({
     <div className="mx-auto max-w-lg px-4 py-8 sm:py-12">
       <h1 className="font-display text-3xl tracking-wide sm:text-4xl">TRACK YOUR ORDER</h1>
 
-      <div className="mt-6 border border-border p-5">
+      <div className="mt-6 rounded-2xl border border-border p-5">
         <div className="flex items-center justify-between">
           <span className="font-semibold">{order.order_number}</span>
           <span className="text-sm text-muted-foreground">{formatDate(order.created_at)}</span>
@@ -65,7 +65,7 @@ export default async function TrackOrderPage({
       </div>
 
       {order.order_status === "shipped" && order.courier_tracking_number && (
-        <div className="mt-8 border border-border bg-muted p-5">
+        <div className="mt-8 rounded-2xl border border-border bg-muted p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Shipment Details
           </p>
