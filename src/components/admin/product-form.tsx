@@ -25,6 +25,8 @@ export function ProductForm({ product }: { product?: ProductWithDetails }) {
     product?.compare_at_price ? String(product.compare_at_price) : ""
   );
   const [category, setCategory] = useState(product?.category ?? "");
+  const [gender, setGender] = useState<"" | "men" | "women">(product?.gender ?? "");
+  const [collection, setCollection] = useState(product?.collection ?? "");
   const [fabric, setFabric] = useState(product?.fabric ?? "");
   const [fit, setFit] = useState(product?.fit ?? "");
   const [gsm, setGsm] = useState(product?.gsm ?? "");
@@ -119,6 +121,8 @@ export function ProductForm({ product }: { product?: ProductWithDetails }) {
       price: priceNum,
       compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null,
       category,
+      gender,
+      collection,
       fabric,
       fit,
       gsm,
@@ -260,6 +264,48 @@ export function ProductForm({ product }: { product?: ProductWithDetails }) {
       <div>
         <Label htmlFor="category">Category</Label>
         <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Oversized T-Shirt" />
+      </div>
+
+      <div className="space-y-3 border border-border p-4">
+        <div>
+          <Label>Shop Menu Placement (optional)</Label>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Choose Men&apos;s or Women&apos;s to make this tee appear under that section of the
+            Shop menu on the site. Leave on &ldquo;None&rdquo; to skip that menu — it still shows
+            in the main Shop grid either way.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {(["", "men", "women"] as const).map((g) => (
+              <button
+                key={g || "none"}
+                type="button"
+                onClick={() => setGender(g)}
+                className={`h-10 min-w-24 border px-3 text-sm font-semibold ${
+                  gender === g ? "border-foreground bg-foreground text-background" : "border-border bg-background"
+                }`}
+              >
+                {g === "" ? "None" : g === "men" ? "Men's" : "Women's"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {gender && (
+          <div>
+            <Label htmlFor="collection">Collection (optional)</Label>
+            <p className="mb-2 text-xs text-muted-foreground">
+              E.g. &ldquo;Football Collection&rdquo; or &ldquo;Gym Collection&rdquo;. Customers can
+              browse straight to it from the {gender === "men" ? "Men's" : "Women's"} menu — use
+              the exact same wording on every tee in the same collection.
+            </p>
+            <Input
+              id="collection"
+              value={collection}
+              onChange={(e) => setCollection(e.target.value)}
+              placeholder="Football Collection"
+            />
+          </div>
+        )}
       </div>
 
       <details className="border border-border p-3">

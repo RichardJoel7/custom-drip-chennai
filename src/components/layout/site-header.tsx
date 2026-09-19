@@ -8,33 +8,45 @@ import { useCart } from "@/components/cart/cart-context";
 import { InstagramIcon } from "@/components/icons/social-icons";
 import { cn } from "@/lib/utils/cn";
 
-const NAV_LINKS = [
-  { href: "/shop", label: "Shop" },
-  { href: "/about", label: "About" },
-  { href: "/contact", label: "Contact" },
-];
+export interface ShopMenu {
+  men: string[];
+  women: string[];
+}
 
-export function SiteHeader({ instagramUrl }: { instagramUrl: string }) {
+export function SiteHeader({
+  instagramUrl,
+  shopMenu,
+}: {
+  instagramUrl: string;
+  shopMenu: ShopMenu;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileShopOpen, setMobileShopOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const { itemCount, isHydrated } = useCart();
   const pathname = usePathname();
 
   if (pathname?.startsWith("/admin")) return null;
 
+  function closeMobileMenu() {
+    setMenuOpen(false);
+    setMobileShopOpen(false);
+  }
+
   return (
     <header className="sticky top-3 z-40 px-3 sm:top-4 sm:px-6">
       <div className="glass mx-auto flex h-16 max-w-6xl items-center justify-between rounded-full px-3 text-white shadow-lg shadow-black/10 sm:px-5">
         <nav className="hidden flex-1 items-center gap-7 md:flex">
-          {NAV_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-sm font-semibold uppercase tracking-wide transition-opacity hover:opacity-70"
-            >
-              {link.label}
-            </Link>
-          ))}
+          <Link href="/" className="text-sm font-semibold uppercase tracking-wide transition-opacity hover:opacity-70">
+            Home
+          </Link>
+          <ShopMenuDropdown shopMenu={shopMenu} />
+          <Link href="/about" className="text-sm font-semibold uppercase tracking-wide transition-opacity hover:opacity-70">
+            About
+          </Link>
+          <Link href="/contact" className="text-sm font-semibold uppercase tracking-wide transition-opacity hover:opacity-70">
+            Contact
+          </Link>
         </nav>
 
         <button
@@ -54,10 +66,10 @@ export function SiteHeader({ instagramUrl }: { instagramUrl: string }) {
             <Image
               src="/images/logo.png"
               alt="Custom Drip Chennai"
-              width={140}
-              height={48}
+              width={200}
+              height={72}
               priority
-              className="h-8 w-auto object-contain sm:h-9"
+              className="h-16 w-auto object-contain"
               onError={() => setLogoError(true)}
             />
           )}
@@ -89,23 +101,60 @@ export function SiteHeader({ instagramUrl }: { instagramUrl: string }) {
       <div
         className={cn(
           "glass mx-auto mt-2 max-w-6xl overflow-hidden rounded-3xl text-white transition-[max-height] duration-200 md:hidden",
-          menuOpen ? "max-h-72" : "max-h-0 border-none"
+          menuOpen ? "max-h-[32rem]" : "max-h-0 border-none"
         )}
       >
         <nav className="flex flex-col px-5 py-2">
-          {NAV_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setMenuOpen(false)}
-              className="border-b border-white/15 py-4 text-base font-semibold uppercase tracking-wide last:border-b-0"
-            >
-              {link.label}
-            </Link>
-          ))}
+          <Link
+            href="/"
+            onClick={closeMobileMenu}
+            className="border-b border-white/15 py-4 text-base font-semibold uppercase tracking-wide"
+          >
+            Home
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => setMobileShopOpen((v) => !v)}
+            aria-expanded={mobileShopOpen}
+            className="flex items-center justify-between border-b border-white/15 py-4 text-base font-semibold uppercase tracking-wide"
+          >
+            Shop
+            <ChevronIcon direction={mobileShopOpen ? "up" : "down"} />
+          </button>
+          {mobileShopOpen && (
+            <div className="space-y-1 border-b border-white/15 pb-3 pl-3">
+              <Link href="/shop" onClick={closeMobileMenu} className="block py-2 text-sm font-semibold uppercase tracking-wide opacity-80">
+                Browse All
+              </Link>
+              <MobileGenderAccordion label="Men's" gender="men" collections={shopMenu.men} onNavigate={closeMobileMenu} />
+              <MobileGenderAccordion label="Women's" gender="women" collections={shopMenu.women} onNavigate={closeMobileMenu} />
+              <Link href="/customize" onClick={closeMobileMenu} className="block py-2 text-sm font-semibold uppercase tracking-wide opacity-80">
+                Customize Yourself
+              </Link>
+              <Link href="/bulk-orders" onClick={closeMobileMenu} className="block py-2 text-sm font-semibold uppercase tracking-wide opacity-80">
+                Bulk/Corporate Orders
+              </Link>
+            </div>
+          )}
+
+          <Link
+            href="/about"
+            onClick={closeMobileMenu}
+            className="border-b border-white/15 py-4 text-base font-semibold uppercase tracking-wide"
+          >
+            About
+          </Link>
+          <Link
+            href="/contact"
+            onClick={closeMobileMenu}
+            className="border-b border-white/15 py-4 text-base font-semibold uppercase tracking-wide"
+          >
+            Contact
+          </Link>
           <Link
             href="/track"
-            onClick={() => setMenuOpen(false)}
+            onClick={closeMobileMenu}
             className="border-b border-white/15 py-4 text-base font-semibold uppercase tracking-wide"
           >
             Track Order
@@ -122,6 +171,127 @@ export function SiteHeader({ instagramUrl }: { instagramUrl: string }) {
         </nav>
       </div>
     </header>
+  );
+}
+
+function ShopMenuDropdown({ shopMenu }: { shopMenu: ShopMenu }) {
+  return (
+    <div className="group relative">
+      <Link href="/shop" className="text-sm font-semibold uppercase tracking-wide transition-opacity hover:opacity-70">
+        Shop
+      </Link>
+      <div className="invisible absolute left-1/2 top-full z-50 -translate-x-1/2 pt-3 opacity-0 transition-opacity duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+        <div className="glass w-64 rounded-2xl p-2 text-white shadow-lg shadow-black/10">
+          <ShopMenuGenderRow label="Men's" gender="men" collections={shopMenu.men} />
+          <ShopMenuGenderRow label="Women's" gender="women" collections={shopMenu.women} />
+          <div className="my-1 border-t border-white/15" />
+          <Link href="/customize" className="block rounded-xl px-3 py-2.5 text-sm font-semibold uppercase tracking-wide hover:bg-white/10">
+            Customize Yourself
+          </Link>
+          <Link href="/bulk-orders" className="block rounded-xl px-3 py-2.5 text-sm font-semibold uppercase tracking-wide hover:bg-white/10">
+            Bulk/Corporate Orders
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShopMenuGenderRow({
+  label,
+  gender,
+  collections,
+}: {
+  label: string;
+  gender: "men" | "women";
+  collections: string[];
+}) {
+  if (collections.length === 0) {
+    return (
+      <Link href={`/shop?gender=${gender}`} className="block rounded-xl px-3 py-2.5 text-sm font-semibold uppercase tracking-wide hover:bg-white/10">
+        {label}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="group/sub relative">
+      <Link
+        href={`/shop?gender=${gender}`}
+        className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold uppercase tracking-wide hover:bg-white/10"
+      >
+        {label}
+        <ChevronIcon direction="right" />
+      </Link>
+      <div className="invisible absolute left-full top-0 z-50 pl-2 opacity-0 transition-opacity duration-150 group-hover/sub:visible group-hover/sub:opacity-100 group-focus-within/sub:visible group-focus-within/sub:opacity-100">
+        <div className="glass w-56 rounded-2xl p-2 text-white shadow-lg shadow-black/10">
+          {collections.map((c) => (
+            <Link
+              key={c}
+              href={`/shop?gender=${gender}&collection=${encodeURIComponent(c)}`}
+              className="block rounded-xl px-3 py-2.5 text-sm font-semibold uppercase tracking-wide hover:bg-white/10"
+            >
+              {c}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MobileGenderAccordion({
+  label,
+  gender,
+  collections,
+  onNavigate,
+}: {
+  label: string;
+  gender: "men" | "women";
+  collections: string[];
+  onNavigate: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (collections.length === 0) {
+    return (
+      <Link href={`/shop?gender=${gender}`} onClick={onNavigate} className="block py-2 text-sm font-semibold uppercase tracking-wide opacity-80">
+        {label}
+      </Link>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <Link href={`/shop?gender=${gender}`} onClick={onNavigate} className="py-2 text-sm font-semibold uppercase tracking-wide opacity-80">
+          {label}
+        </Link>
+        <button
+          type="button"
+          aria-label={`Toggle ${label} collections`}
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          className="flex h-8 w-8 items-center justify-center"
+        >
+          <ChevronIcon direction={open ? "up" : "down"} />
+        </button>
+      </div>
+      {open && (
+        <div className="space-y-1 pb-1 pl-3">
+          {collections.map((c) => (
+            <Link
+              key={c}
+              href={`/shop?gender=${gender}&collection=${encodeURIComponent(c)}`}
+              onClick={onNavigate}
+              className="block py-1.5 text-xs font-semibold uppercase tracking-wide opacity-70"
+            >
+              {c}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -161,6 +331,19 @@ function MenuIcon({ open }: { open: boolean }) {
       ) : (
         <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       )}
+    </svg>
+  );
+}
+
+function ChevronIcon({ direction }: { direction: "up" | "down" | "right" }) {
+  const paths = {
+    up: "M6 15l6-6 6 6",
+    down: "M6 9l6 6 6-6",
+    right: "M9 6l6 6-6 6",
+  };
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d={paths[direction]} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

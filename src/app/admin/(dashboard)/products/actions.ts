@@ -26,6 +26,8 @@ export interface SaveProductInput {
   price: number;
   compareAtPrice: number | null;
   category: string;
+  gender: string;
+  collection: string;
   fabric: string;
   fit: string;
   gsm: string;
@@ -73,6 +75,8 @@ export async function saveProduct(
     price: input.price,
     compare_at_price: input.compareAtPrice,
     category: input.category.trim() || null,
+    gender: input.gender || null,
+    collection: input.gender ? input.collection.trim() || null : null,
     fabric: input.fabric.trim() || null,
     fit: input.fit.trim() || null,
     gsm: input.gsm.trim() || null,
@@ -214,6 +218,8 @@ export async function duplicateProduct(productId: string): Promise<{ error?: str
       price: product.price,
       compare_at_price: product.compare_at_price,
       category: product.category,
+      gender: product.gender,
+      collection: product.collection,
       fabric: product.fabric,
       fit: product.fit,
       gsm: product.gsm,

@@ -52,6 +52,8 @@ export interface Product {
   price: number;
   compare_at_price: number | null;
   category: string | null;
+  gender: "men" | "women" | null;
+  collection: string | null;
   fabric: string | null;
   fit: string | null;
   gsm: string | null;

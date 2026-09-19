@@ -17,16 +17,46 @@ function sortProductDetails(product: ProductWithDetails): ProductWithDetails {
   };
 }
 
-export async function getActiveProducts(): Promise<ProductWithDetails[]> {
+export async function getActiveProducts(filters?: {
+  gender?: "men" | "women";
+  collection?: string;
+}): Promise<ProductWithDetails[]> {
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select(PRODUCT_SELECT)
-    .eq("is_active", true)
-    .order("created_at", { ascending: false });
+  let query = supabase.from("products").select(PRODUCT_SELECT).eq("is_active", true);
+
+  if (filters?.gender) query = query.eq("gender", filters.gender);
+  if (filters?.collection) query = query.eq("collection", filters.collection);
+
+  const { data, error } = await query.order("created_at", { ascending: false });
 
   if (error || !data) return [];
   return (data as ProductWithDetails[]).map(sortProductDetails);
+}
+
+/**
+ * Powers the Shop menu's Men's/Women's hover flyouts: the distinct, non-empty collections
+ * tagged on currently active products, per gender. Purely derived from product data — there
+ * is no separate collections table to keep in sync.
+ */
+export async function getShopMenu(): Promise<{ men: string[]; women: string[] }> {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select("gender, collection")
+    .eq("is_active", true)
+    .not("gender", "is", null);
+
+  if (error || !data) return { men: [], women: [] };
+
+  const men = new Set<string>();
+  const women = new Set<string>();
+  for (const row of data as { gender: "men" | "women" | null; collection: string | null }[]) {
+    if (!row.collection) continue;
+    if (row.gender === "men") men.add(row.collection);
+    if (row.gender === "women") women.add(row.collection);
+  }
+
+  return { men: Array.from(men).sort(), women: Array.from(women).sort() };
 }
 
 /** Admin-only: all products regardless of active status, for the admin product list. */

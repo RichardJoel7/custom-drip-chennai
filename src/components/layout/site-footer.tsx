@@ -20,9 +20,9 @@ export function SiteFooter({ settings }: { settings: Settings }) {
           <Image
             src="/images/logo.png"
             alt="Custom Drip Chennai"
-            width={160}
-            height={56}
-            className="h-10 w-auto object-contain"
+            width={220}
+            height={80}
+            className="h-16 w-auto object-contain"
           />
           <p className="mt-4 max-w-sm font-display text-lg italic tracking-wide text-background/80">
             &ldquo;Your fit. Your story. Your drip.&rdquo;
