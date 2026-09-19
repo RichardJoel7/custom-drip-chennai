@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { placeOrderSchema } from "@/lib/validations/checkout";
 
 const FRIENDLY_ERRORS: Record<string, string> = {
@@ -22,6 +23,17 @@ function friendlyMessageFor(rawMessage: string): string {
 }
 
 export async function POST(request: Request) {
+  // Orders now require an account — the /checkout page already redirects signed-out
+  // visitors to /login, this is the defense-in-depth check against calling the API directly.
+  const authedSupabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await authedSupabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Please sign in to place an order." }, { status: 401 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -59,6 +71,7 @@ export async function POST(request: Request) {
       variant_id: item.variantId,
       quantity: item.quantity,
     })),
+    p_auth_user_id: user.id,
   });
 
   if (error) {

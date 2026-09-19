@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/components/auth/auth-context";
 import { useCart } from "@/components/cart/cart-context";
-import { useIsFavorited, useToggleFavorite } from "@/hooks/use-favorites";
+import { toggleWishlist } from "@/app/(site)/wishlist/actions";
 import { cn } from "@/lib/utils/cn";
 import { getColorSwatch } from "@/lib/utils/color-swatch";
 import { formatPrice } from "@/lib/utils/format";
@@ -15,7 +16,13 @@ import {
 } from "@/lib/utils/product-helpers";
 import type { ProductWithDetails } from "@/types";
 
-export function ProductPurchasePanel({ product }: { product: ProductWithDetails }) {
+export function ProductPurchasePanel({
+  product,
+  initialIsFavorited,
+}: {
+  product: ProductWithDetails;
+  initialIsFavorited: boolean;
+}) {
   const colors = useMemo(() => availableColorsForProduct(product), [product]);
   const sizes = useMemo(() => availableSizesForProduct(product), [product]);
 
@@ -24,11 +31,24 @@ export function ProductPurchasePanel({ product }: { product: ProductWithDetails 
   const [quantity, setQuantity] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
   const [justShared, setJustShared] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(initialIsFavorited);
 
   const { addItem } = useCart();
+  const { user } = useAuth();
   const router = useRouter();
-  const isFavorited = useIsFavorited(product.id);
-  const toggleFavorite = useToggleFavorite(product.id);
+  const pathname = usePathname();
+
+  async function handleToggleFavorite() {
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent(pathname)}`);
+      return;
+    }
+    const optimistic = !isFavorited;
+    setIsFavorited(optimistic);
+    const result = await toggleWishlist(product.id);
+    if (result.wishlisted !== undefined) setIsFavorited(result.wishlisted);
+    else if (result.error) setIsFavorited(!optimistic);
+  }
 
   async function handleShare() {
     const url = typeof window !== "undefined" ? window.location.href : "";
@@ -105,7 +125,7 @@ export function ProductPurchasePanel({ product }: { product: ProductWithDetails 
             type="button"
             aria-label={isFavorited ? "Remove from favourites" : "Add to favourites"}
             aria-pressed={isFavorited}
-            onClick={toggleFavorite}
+            onClick={handleToggleFavorite}
             className="flex h-11 w-11 items-center justify-center rounded-full border border-border transition-colors hover:border-foreground"
           >
             <HeartIcon filled={isFavorited} />

@@ -29,6 +29,18 @@ export async function getOrderByIdForAdmin(id: string): Promise<OrderWithItems |
   return data as OrderWithItems;
 }
 
+/** A signed-in customer's own orders — relies on RLS (orders_self_select) via the session-bound client. */
+export async function getOrdersForCustomer(): Promise<OrderWithItems[]> {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("orders")
+    .select(ORDER_SELECT)
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return [];
+  return data as OrderWithItems[];
+}
+
 /**
  * Guest-facing order tracking. Orders have no public RLS SELECT policy (customer PII must
  * stay locked down), so this deliberately uses the service-role client — the caller has

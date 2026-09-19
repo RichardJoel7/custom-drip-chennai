@@ -3,9 +3,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/components/auth/auth-context";
 import { useCart } from "@/components/cart/cart-context";
 import { InstagramIcon } from "@/components/icons/social-icons";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils/cn";
 
 export interface ShopMenu {
@@ -16,21 +18,33 @@ export interface ShopMenu {
 export function SiteHeader({
   instagramUrl,
   shopMenu,
+  wishlistCount,
 }: {
   instagramUrl: string;
   shopMenu: ShopMenu;
+  wishlistCount: number;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileShopOpen, setMobileShopOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const { itemCount, isHydrated } = useCart();
+  const { user } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
 
   if (pathname?.startsWith("/admin")) return null;
 
   function closeMobileMenu() {
     setMenuOpen(false);
     setMobileShopOpen(false);
+  }
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    closeMobileMenu();
+    router.push("/");
+    router.refresh();
   }
 
   return (
@@ -76,12 +90,20 @@ export function SiteHeader({
         </Link>
 
         <div className="flex flex-1 items-center justify-end gap-1">
+          <div className="hidden sm:flex">
+            <ProfileMenu user={user} />
+          </div>
           <Link
-            href="/track"
-            aria-label="Track your order"
-            className="hidden h-11 w-11 items-center justify-center sm:flex"
+            href="/wishlist"
+            aria-label="Wishlist"
+            className="relative hidden h-11 w-11 items-center justify-center sm:flex"
           >
-            <ProfileIcon />
+            <HeartIcon />
+            {wishlistCount > 0 && (
+              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground">
+                {wishlistCount}
+              </span>
+            )}
           </Link>
           <Link
             href="/cart"
@@ -153,12 +175,45 @@ export function SiteHeader({
             Contact
           </Link>
           <Link
-            href="/track"
+            href="/wishlist"
             onClick={closeMobileMenu}
             className="border-b border-white/15 py-4 text-base font-semibold uppercase tracking-wide"
           >
-            Track Order
+            Wishlist
           </Link>
+          {user ? (
+            <>
+              <Link
+                href="/account/orders"
+                onClick={closeMobileMenu}
+                className="border-b border-white/15 py-4 text-base font-semibold uppercase tracking-wide"
+              >
+                My Orders
+              </Link>
+              <Link
+                href="/account"
+                onClick={closeMobileMenu}
+                className="border-b border-white/15 py-4 text-base font-semibold uppercase tracking-wide"
+              >
+                My Profile
+              </Link>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="border-b border-white/15 py-4 text-left text-base font-semibold uppercase tracking-wide"
+              >
+                Sign Out
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              onClick={closeMobileMenu}
+              className="border-b border-white/15 py-4 text-base font-semibold uppercase tracking-wide"
+            >
+              Sign In
+            </Link>
+          )}
           <a
             href={instagramUrl}
             target="_blank"
@@ -292,6 +347,92 @@ function MobileGenderAccordion({
         </div>
       )}
     </div>
+  );
+}
+
+function ProfileMenu({ user }: { user: import("@supabase/supabase-js").User | null }) {
+  const [open, setOpen] = useState(false);
+  const router = useRouter();
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setOpen(false);
+    router.push("/");
+    router.refresh();
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-label="Account menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-11 w-11 items-center justify-center"
+      >
+        <ProfileIcon />
+      </button>
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-label="Close account menu"
+            className="fixed inset-0 z-40 cursor-default"
+            onClick={() => setOpen(false)}
+          />
+          <div className="glass absolute right-0 top-full z-50 mt-2 w-48 rounded-2xl p-2 text-white shadow-lg shadow-black/10">
+            {user ? (
+              <>
+                <p className="truncate px-3 py-2 text-xs text-white/60">{user.email}</p>
+                <Link
+                  href="/account/orders"
+                  onClick={() => setOpen(false)}
+                  className="block rounded-xl px-3 py-2.5 text-sm font-semibold uppercase tracking-wide hover:bg-white/10"
+                >
+                  My Orders
+                </Link>
+                <Link
+                  href="/account"
+                  onClick={() => setOpen(false)}
+                  className="block rounded-xl px-3 py-2.5 text-sm font-semibold uppercase tracking-wide hover:bg-white/10"
+                >
+                  My Profile
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="block w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold uppercase tracking-wide hover:bg-white/10"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <Link
+                href="/login"
+                onClick={() => setOpen(false)}
+                className="block rounded-xl px-3 py-2.5 text-sm font-semibold uppercase tracking-wide hover:bg-white/10"
+              >
+                Sign In
+              </Link>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function HeartIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 20.5s-7.5-4.6-10-9.3C.5 8 2 4.5 5.5 4c2-.3 3.7.6 5 2.4a1 1 0 0 0 1 0c1.3-1.8 3-2.7 5-2.4 3.5.5 5 4 3.5 7.2-2.5 4.7-10 9.3-10 9.3Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

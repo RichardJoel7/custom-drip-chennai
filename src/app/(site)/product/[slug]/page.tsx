@@ -6,7 +6,9 @@ import {
   ProductDetailsAccordion,
   SizeGuideLink,
 } from "@/components/products/product-details-accordion";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getProductBySlug } from "@/services/products";
+import { isProductWishlisted } from "@/services/wishlist";
 
 export const revalidate = 60;
 
@@ -38,6 +40,12 @@ export default async function ProductPage({
   const { slug } = await params;
   const product = await getProductBySlug(slug);
   if (!product) notFound();
+
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const initialIsFavorited = user ? await isProductWishlisted(user.id, product.id) : false;
 
   const details = [
     {
@@ -77,7 +85,7 @@ export default async function ProductPage({
       <div className="grid gap-8 lg:grid-cols-2 lg:gap-16">
         <ProductGallery images={product.product_images} productName={product.name} />
         <div>
-          <ProductPurchasePanel product={product} />
+          <ProductPurchasePanel product={product} initialIsFavorited={initialIsFavorited} />
           <div className="mt-8">
             <ProductDetailsAccordion sections={details} />
           </div>
