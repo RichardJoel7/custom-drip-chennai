@@ -26,7 +26,8 @@ export function ProductForm({ product }: { product?: ProductWithDetails }) {
   );
   const [category, setCategory] = useState(product?.category ?? "");
   const [gender, setGender] = useState<"" | "men" | "women">(product?.gender ?? "");
-  const [collection, setCollection] = useState(product?.collection ?? "");
+  const [collections, setCollections] = useState<string[]>(product?.collections ?? []);
+  const [collectionInput, setCollectionInput] = useState("");
   const [fabric, setFabric] = useState(product?.fabric ?? "");
   const [fit, setFit] = useState(product?.fit ?? "");
   const [gsm, setGsm] = useState(product?.gsm ?? "");
@@ -91,6 +92,19 @@ export function ProductForm({ product }: { product?: ProductWithDetails }) {
     setCustomColor("");
   }
 
+  function addCollection() {
+    const trimmed = collectionInput.trim();
+    if (!trimmed) return;
+    if (!collections.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+      setCollections((prev) => [...prev, trimmed]);
+    }
+    setCollectionInput("");
+  }
+
+  function removeCollection(collection: string) {
+    setCollections((prev) => prev.filter((c) => c !== collection));
+  }
+
   function updateStock(color: string, size: string, value: string) {
     const qty = Math.max(0, parseInt(value, 10) || 0);
     setStock((prev) => ({ ...prev, [variantKey(color, size)]: qty }));
@@ -122,7 +136,7 @@ export function ProductForm({ product }: { product?: ProductWithDetails }) {
       compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null,
       category,
       gender,
-      collection,
+      collections,
       fabric,
       fit,
       gsm,
@@ -292,18 +306,51 @@ export function ProductForm({ product }: { product?: ProductWithDetails }) {
 
         {gender && (
           <div>
-            <Label htmlFor="collection">Collection (optional)</Label>
+            <Label htmlFor="collection">Collections (optional)</Label>
             <p className="mb-2 text-xs text-muted-foreground">
-              E.g. &ldquo;Football Collection&rdquo; or &ldquo;Gym Collection&rdquo;. Customers can
-              browse straight to it from the {gender === "men" ? "Men's" : "Women's"} menu — use
-              the exact same wording on every tee in the same collection.
+              E.g. &ldquo;Football Collection&rdquo; or &ldquo;Gym Collection&rdquo;. A tee can be
+              in more than one — add as many as apply. Customers can browse straight to any of
+              them from the {gender === "men" ? "Men's" : "Women's"} menu. Use the exact same
+              wording on every tee that shares a collection.
             </p>
-            <Input
-              id="collection"
-              value={collection}
-              onChange={(e) => setCollection(e.target.value)}
-              placeholder="Football Collection"
-            />
+            {collections.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {collections.map((c) => (
+                  <span
+                    key={c}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-3 py-1.5 text-sm font-medium text-background"
+                  >
+                    {c}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${c}`}
+                      onClick={() => removeCollection(c)}
+                      className="text-background/70 hover:text-background"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Input
+                id="collection"
+                value={collectionInput}
+                onChange={(e) => setCollectionInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addCollection();
+                  }
+                }}
+                placeholder="Football Collection"
+                className="flex-1"
+              />
+              <Button type="button" variant="outline" onClick={addCollection}>
+                Add
+              </Button>
+            </div>
           </div>
         )}
       </div>

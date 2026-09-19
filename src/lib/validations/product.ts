@@ -16,7 +16,7 @@ export const productFormSchema = z.object({
     .transform((v) => (v === undefined || v === "" || Number.isNaN(v) ? null : v)),
   category: z.string().trim().optional(),
   gender: z.enum(["men", "women", ""]).optional(),
-  collection: z.string().trim().optional(),
+  collections: z.array(z.string().trim().min(1)).optional(),
   fabric: z.string().trim().optional(),
   fit: z.string().trim().optional(),
   gsm: z.string().trim().optional(),

@@ -25,7 +25,7 @@ export async function getActiveProducts(filters?: {
   let query = supabase.from("products").select(PRODUCT_SELECT).eq("is_active", true);
 
   if (filters?.gender) query = query.eq("gender", filters.gender);
-  if (filters?.collection) query = query.eq("collection", filters.collection);
+  if (filters?.collection) query = query.contains("collections", [filters.collection]);
 
   const { data, error } = await query.order("created_at", { ascending: false });
 
@@ -42,7 +42,7 @@ export async function getShopMenu(): Promise<{ men: string[]; women: string[] }>
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("products")
-    .select("gender, collection")
+    .select("gender, collections")
     .eq("is_active", true)
     .not("gender", "is", null);
 
@@ -50,10 +50,11 @@ export async function getShopMenu(): Promise<{ men: string[]; women: string[] }>
 
   const men = new Set<string>();
   const women = new Set<string>();
-  for (const row of data as { gender: "men" | "women" | null; collection: string | null }[]) {
-    if (!row.collection) continue;
-    if (row.gender === "men") men.add(row.collection);
-    if (row.gender === "women") women.add(row.collection);
+  for (const row of data as { gender: "men" | "women" | null; collections: string[] | null }[]) {
+    for (const collection of row.collections ?? []) {
+      if (row.gender === "men") men.add(collection);
+      if (row.gender === "women") women.add(collection);
+    }
   }
 
   return { men: Array.from(men).sort(), women: Array.from(women).sort() };

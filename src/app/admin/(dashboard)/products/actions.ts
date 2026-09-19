@@ -27,7 +27,7 @@ export interface SaveProductInput {
   compareAtPrice: number | null;
   category: string;
   gender: string;
-  collection: string;
+  collections: string[];
   fabric: string;
   fit: string;
   gsm: string;
@@ -76,7 +76,9 @@ export async function saveProduct(
     compare_at_price: input.compareAtPrice,
     category: input.category.trim() || null,
     gender: input.gender || null,
-    collection: input.gender ? input.collection.trim() || null : null,
+    collections: input.gender
+      ? Array.from(new Set(input.collections.map((c) => c.trim()).filter(Boolean)))
+      : [],
     fabric: input.fabric.trim() || null,
     fit: input.fit.trim() || null,
     gsm: input.gsm.trim() || null,
@@ -219,7 +221,7 @@ export async function duplicateProduct(productId: string): Promise<{ error?: str
       compare_at_price: product.compare_at_price,
       category: product.category,
       gender: product.gender,
-      collection: product.collection,
+      collections: product.collections,
       fabric: product.fabric,
       fit: product.fit,
       gsm: product.gsm,
