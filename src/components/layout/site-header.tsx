@@ -120,13 +120,14 @@ export function SiteHeader({
         </div>
       </div>
 
+      {/* Absolute + invisible: the hero's -mt-16 assumes the header is exactly the 64px pill. */}
       <div
         className={cn(
-          "glass mx-auto mt-2 max-w-6xl overflow-hidden rounded-3xl text-white transition-[max-height] duration-200 md:hidden",
-          menuOpen ? "max-h-[32rem]" : "max-h-0 border-none"
+          "glass absolute inset-x-3 top-full mt-2 overflow-hidden rounded-3xl text-white transition-[max-height,visibility] duration-200 sm:inset-x-6 md:hidden",
+          menuOpen ? "visible max-h-[32rem]" : "invisible max-h-0"
         )}
       >
-        <nav className="flex flex-col px-5 py-2">
+        <nav className="flex flex-col bg-black/65 px-5 py-2">
           <Link
             href="/"
             onClick={closeMobileMenu}

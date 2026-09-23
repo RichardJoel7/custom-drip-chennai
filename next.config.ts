@@ -24,6 +24,8 @@ const isLocalSupabase = supabasePattern?.hostname === "127.0.0.1" || supabasePat
 const nextConfig: NextConfig = {
   images: {
     ...(isLocalSupabase ? { dangerouslyAllowLocalIP: true } : {}),
+    // Next 16 only serves quality 75 unless others are allow-listed; 90 is used for hero banners.
+    qualities: [75, 90],
     remotePatterns: [
       // Covers both a hosted Supabase project (https) and the local Supabase CLI (http,
       // 127.0.0.1) used during local development.
