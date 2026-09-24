@@ -12,8 +12,6 @@ export interface HeroSlide {
   mobileSrc?: StaticImageData;
   href: string;
   label: string;
-  /** Only the primary slide shows the "DRIPPIN'" heading, tagline and Shop pill. */
-  showHeading?: boolean;
 }
 
 const AUTO_ADVANCE_MS = 6000;
@@ -37,8 +35,6 @@ export function HeroCarousel({
     return () => clearInterval(id);
   }, [slides.length, index]);
 
-  const active = slides[index];
-
   return (
     <section
       className="relative -mt-16 aspect-(--hero-mobile) w-full overflow-hidden bg-foreground text-white sm:aspect-(--hero-desktop)"
@@ -55,33 +51,8 @@ export function HeroCarousel({
           )}
         >
           <SlideImage slide={slide} eager={i === 0} />
-          {slide.showHeading && (
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/50" />
-          )}
         </Link>
       ))}
-
-      {active.showHeading && (
-        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-end px-4 pb-10 text-center sm:px-6 sm:pb-16">
-          <div className="relative">
-            <span
-              aria-hidden="true"
-              className="text-outline-white font-sans pointer-events-none absolute inset-0 flex translate-y-2 select-none items-center justify-center text-[clamp(3.25rem,14vw,10.5rem)] font-black leading-[0.9] tracking-tight [font-stretch:85%] sm:translate-y-3"
-            >
-              DRIPPIN&apos;
-            </span>
-            <h1 className="relative font-sans text-[clamp(3.25rem,14vw,10.5rem)] font-black leading-[0.9] tracking-tight [font-stretch:85%]">
-              DRIPPIN&apos;
-            </h1>
-          </div>
-          <p className="mx-auto mt-4 max-w-md text-base text-white/85 sm:text-lg">
-            Original graphic tees from Custom Drip Chennai.
-          </p>
-          <span className="glass-light mt-6 inline-flex h-9 items-center justify-center rounded-full px-4 text-sm font-semibold uppercase tracking-wide text-foreground shadow-lg shadow-black/5">
-            {active.label}
-          </span>
-        </div>
-      )}
 
       {slides.length > 1 && (
         <>

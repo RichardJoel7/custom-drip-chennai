@@ -5,7 +5,8 @@ import { ProductGrid } from "@/components/products/product-grid";
 import { getFeaturedProducts } from "@/services/products";
 import { getSettings } from "@/services/settings";
 // Static imports get content-hashed URLs, so replacing a file never serves a stale cached copy.
-import heroMain from "../../../public/images/hero.jpg";
+import heroShop from "../../../public/images/hero-1.jpeg";
+import heroShopMobile from "../../../public/images/mobile-hero-shop.jpeg";
 import heroMen from "../../../public/images/hero-2.png";
 import heroWomen from "../../../public/images/hero-3.png";
 import heroMenMobile from "../../../public/images/mobile-hero-men.jpeg";
@@ -14,7 +15,7 @@ import heroCustomize from "../../../public/images/hero-4.jpg";
 import heroCustomizeMobile from "../../../public/images/mobile-hero-customize.jpg";
 
 const HERO_SLIDES: HeroSlide[] = [
-  { desktopSrc: heroMain, href: "/shop", label: "Shop", showHeading: true },
+  { desktopSrc: heroShop, mobileSrc: heroShopMobile, href: "/shop", label: "Shop" },
   { desktopSrc: heroMen, mobileSrc: heroMenMobile, href: "/shop?gender=men", label: "Shop Men's" },
   { desktopSrc: heroWomen, mobileSrc: heroWomenMobile, href: "/shop?gender=women", label: "Shop Women's" },
   { desktopSrc: heroCustomize, mobileSrc: heroCustomizeMobile, href: "/customize", label: "Customize Yourself" },
@@ -25,6 +26,7 @@ export default async function HomePage() {
 
   return (
     <div>
+      <h1 className="sr-only">Custom Drip Chennai — Original Graphic T-Shirts</h1>
       <HeroCarousel
         slides={HERO_SLIDES}
         desktopAspect={heroMen.width / heroMen.height}

@@ -22,6 +22,8 @@ const supabasePattern = supabaseRemotePattern();
 const isLocalSupabase = supabasePattern?.hostname === "127.0.0.1" || supabasePattern?.hostname === "localhost";
 
 const nextConfig: NextConfig = {
+  // Dev only: lets phones on the same Wi-Fi load the dev server by LAN IP (IPs change via DHCP).
+  allowedDevOrigins: ["192.168.0.*", "10.*.*.*"],
   images: {
     ...(isLocalSupabase ? { dangerouslyAllowLocalIP: true } : {}),
     // Next 16 only serves quality 75 unless others are allow-listed; 90 is used for hero banners.
