@@ -1,5 +1,6 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
+import { isStaging } from "@/lib/utils/app-env";
 
 let cachedTransporter: Transporter | null = null;
 
@@ -9,8 +10,12 @@ let cachedTransporter: Transporter | null = null;
  * throwing) when not configured, so emails are simply skipped until GMAIL_USER /
  * GMAIL_APP_PASSWORD are set — order creation, payment verification, and shipping all
  * work without it; email is a bonus.
+ *
+ * The staging site never sends email, even though it shares the live Gmail credentials.
  */
 export function getEmailTransporter(): Transporter | null {
+  if (isStaging) return null;
+
   const user = process.env.GMAIL_USER;
   const appPassword = process.env.GMAIL_APP_PASSWORD;
   if (!user || !appPassword) return null;

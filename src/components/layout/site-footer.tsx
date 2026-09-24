@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { InstagramIcon, WhatsAppIcon } from "@/components/icons/social-icons";
+import { telUrl, whatsappUrl } from "@/lib/utils/contact-links";
 import type { Settings } from "@/types";
 
 const FOOTER_LINKS = [
@@ -48,7 +49,7 @@ export function SiteFooter({ settings }: { settings: Settings }) {
               </a>
               {settings.whatsapp_number && (
                 <a
-                  href={`https://wa.me/${settings.whatsapp_number.replace(/\D/g, "")}`}
+                  href={whatsappUrl(settings.whatsapp_number)}
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Chat with us on WhatsApp"
@@ -76,7 +77,14 @@ export function SiteFooter({ settings }: { settings: Settings }) {
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-background/60">Contact</p>
             <ul className="mt-3 space-y-2 text-sm text-background/85">
-              {settings.contact_number && <li>Call: {settings.contact_number}</li>}
+              {settings.contact_number && (
+                <li>
+                  Call:{" "}
+                  <a href={telUrl(settings.contact_number)} className="underline-offset-4 hover:underline">
+                    {settings.contact_number}
+                  </a>
+                </li>
+              )}
               {settings.whatsapp_number && <li>WhatsApp: {settings.whatsapp_number}</li>}
               <li>Chennai, Tamil Nadu, India</li>
             </ul>

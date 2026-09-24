@@ -55,6 +55,22 @@ body {
   scrollbar-width: none;
 }
 
+/* Shows transparency behind design artwork, like an image editor. */
+.checkerboard {
+  background-color: #ffffff;
+  background-image: repeating-conic-gradient(#f0f0ed 0% 25%, #ffffff 0% 50%);
+  background-size: 18px 18px;
+}
+
+@keyframes price-pop {
+  0% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 /* Glassmorphism — frosted, translucent panels used over photos and flat backgrounds alike. */
 .glass {
   background: rgba(10, 10, 10, 0.35);

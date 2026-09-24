@@ -7,6 +7,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { cartLineKey } from "@/lib/custom/pricing";
 import type { CartItem } from "@/types";
 
 const STORAGE_KEY = "cdc_cart_v1";
@@ -62,23 +63,24 @@ function getServerSnapshot(): CartItem[] {
 }
 
 function addItem(item: CartItem) {
-  const existing = cartItems.find((i) => i.variantId === item.variantId);
+  const key = cartLineKey(item);
+  const existing = cartItems.find((i) => cartLineKey(i) === key);
   if (existing) {
     const nextQty = Math.min(existing.quantity + item.quantity, item.maxStock);
-    setCartItems(cartItems.map((i) => (i.variantId === item.variantId ? { ...i, quantity: nextQty } : i)));
+    setCartItems(cartItems.map((i) => (cartLineKey(i) === key ? { ...i, quantity: nextQty } : i)));
   } else {
     setCartItems([...cartItems, item]);
   }
 }
 
-function removeItem(variantId: string) {
-  setCartItems(cartItems.filter((i) => i.variantId !== variantId));
+function removeItem(lineKey: string) {
+  setCartItems(cartItems.filter((i) => cartLineKey(i) !== lineKey));
 }
 
-function updateQuantity(variantId: string, quantity: number) {
+function updateQuantity(lineKey: string, quantity: number) {
   setCartItems(
     cartItems
-      .map((i) => (i.variantId === variantId ? { ...i, quantity: Math.max(1, Math.min(quantity, i.maxStock)) } : i))
+      .map((i) => (cartLineKey(i) === lineKey ? { ...i, quantity: Math.max(1, Math.min(quantity, i.maxStock)) } : i))
       .filter((i) => i.quantity > 0)
   );
 }
@@ -90,10 +92,9 @@ function clearCart() {
 interface CartContextValue {
   items: CartItem[];
   addItem: (item: CartItem) => void;
-  removeItem: (variantId: string) => void;
-  updateQuantity: (variantId: string, quantity: number) => void;
+  removeItem: (lineKey: string) => void;
+  updateQuantity: (lineKey: string, quantity: number) => void;
   clearCart: () => void;
-  subtotal: number;
   itemCount: number;
   isHydrated: boolean;
 }
@@ -112,12 +113,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const items = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const isHydrated = useIsHydrated();
 
-  const subtotal = useMemo(() => items.reduce((sum, i) => sum + i.price * i.quantity, 0), [items]);
   const itemCount = useMemo(() => items.reduce((sum, i) => sum + i.quantity, 0), [items]);
 
+  // Subtotals live in usePricedCart, which re-prices custom tees from the current price list.
   const value = useMemo(
-    () => ({ items, addItem, removeItem, updateQuantity, clearCart, subtotal, itemCount, isHydrated }),
-    [items, subtotal, itemCount, isHydrated]
+    () => ({ items, addItem, removeItem, updateQuantity, clearCart, itemCount, isHydrated }),
+    [items, itemCount, isHydrated]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

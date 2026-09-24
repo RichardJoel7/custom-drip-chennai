@@ -3,13 +3,15 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/cart/cart-context";
-import { Button } from "@/components/ui/button";
+import { usePricedCart } from "@/components/cart/use-priced-cart";
+import { Button, LinkButton } from "@/components/ui/button";
 import { Input, Label, Textarea, FieldError } from "@/components/ui/input";
 import { UpiPaymentPanel } from "@/components/checkout/upi-payment-panel";
+import { SIDE_LABELS } from "@/lib/custom/pricing";
 import { formatPrice } from "@/lib/utils/format";
 import { calculateShipping } from "@/lib/utils/shipping";
 import { checkoutFormSchema, type CheckoutFormValues } from "@/lib/validations/checkout";
-import type { Settings } from "@/types";
+import type { CartItem, CustomCatalog, Settings } from "@/types";
 
 const EMPTY_FORM: CheckoutFormValues = {
   fullName: "",
@@ -27,8 +29,22 @@ const EMPTY_FORM: CheckoutFormValues = {
 
 type Step = "details" | "payment";
 
-export function CheckoutFlow({ settings }: { settings: Settings }) {
-  const { items, subtotal, clearCart, isHydrated } = useCart();
+function toOrderPayload(item: CartItem) {
+  if (item.kind === "custom") {
+    return { type: "custom" as const, ...item.config, quantity: item.quantity };
+  }
+  return { type: "product" as const, productId: item.productId, variantId: item.variantId, quantity: item.quantity };
+}
+
+function summaryLabel(item: CartItem) {
+  return item.kind === "custom"
+    ? `${item.name} (${item.colorName}/${item.sizeLabel}, ${item.printOption.name} ${SIDE_LABELS[item.config.sides]}) x${item.quantity}`
+    : `${item.name} (${item.color}/${item.size}) x${item.quantity}`;
+}
+
+export function CheckoutFlow({ settings, catalog }: { settings: Settings; catalog: CustomCatalog | null }) {
+  const { clearCart } = useCart();
+  const { items, subtotal, hasUnavailable, isHydrated } = usePricedCart(catalog);
   const router = useRouter();
 
   const [step, setStep] = useState<Step>("details");
@@ -41,10 +57,7 @@ export function CheckoutFlow({ settings }: { settings: Settings }) {
   const shipping = calculateShipping(subtotal, settings);
   const total = subtotal + shipping;
 
-  const orderSummary = useMemo(
-    () => items.map((i) => `${i.name} (${i.color}/${i.size}) x${i.quantity}`).join(", "),
-    [items]
-  );
+  const orderSummary = useMemo(() => items.map(summaryLabel).join(", "), [items]);
 
   function updateField<K extends keyof CheckoutFormValues>(key: K, value: CheckoutFormValues[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -80,11 +93,7 @@ export function CheckoutFlow({ settings }: { settings: Settings }) {
         body: JSON.stringify({
           ...form,
           upiTransactionId,
-          items: items.map((i) => ({
-            productId: i.productId,
-            variantId: i.variantId,
-            quantity: i.quantity,
-          })),
+          items: items.map(toOrderPayload),
         }),
       });
 
@@ -111,6 +120,20 @@ export function CheckoutFlow({ settings }: { settings: Settings }) {
       <div className="mx-auto max-w-xl px-4 py-20 text-center">
         <h1 className="font-display text-3xl tracking-wide">YOUR CART IS EMPTY</h1>
         <p className="mt-2 text-muted-foreground">Add something to your cart before checking out.</p>
+      </div>
+    );
+  }
+
+  if (hasUnavailable) {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-20 text-center">
+        <h1 className="font-display text-3xl tracking-wide">UPDATE YOUR CART</h1>
+        <p className="mt-2 text-muted-foreground">
+          One of your custom tees uses an option that&apos;s no longer available.
+        </p>
+        <LinkButton href="/cart" size="lg" className="mt-6">
+          Review Cart
+        </LinkButton>
       </div>
     );
   }

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { LinkButton } from "@/components/ui/button";
+import { TeeMockup } from "@/components/custom/tee-mockup";
 import { OrderTimeline } from "@/components/track/order-timeline";
+import { customDetailsOf, orderItemVariantLabel } from "@/lib/custom/order-item";
 import { formatDate, formatPrice } from "@/lib/utils/format";
 import { PAYMENT_STATUS_LABELS } from "@/types";
 import { getOrderByTrackingToken } from "@/services/orders";
@@ -36,14 +38,32 @@ export default async function TrackOrderPage({
         </div>
 
         <div className="mt-4 space-y-2 border-t border-border pt-4">
-          {order.order_items.map((item) => (
-            <div key={item.id} className="flex justify-between text-sm">
-              <span>
-                {item.product_name} ({item.color}/{item.size}) x{item.quantity}
-              </span>
-              <span className="font-semibold">{formatPrice(item.line_total)}</span>
-            </div>
-          ))}
+          {order.order_items.map((item) => {
+            const details = customDetailsOf(item);
+            const design = details?.front_design ?? details?.back_design;
+            return (
+              <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
+                <span className="flex items-center gap-3">
+                  {details && (
+                    <span className="w-12 flex-none rounded-lg bg-muted p-0.5">
+                      <TeeMockup
+                        colorHex={details.color_hex}
+                        view={details.front_design ? "front" : "back"}
+                        printArea={details.print_option}
+                        designUrl={design?.image_url}
+                        imageWidth={256}
+                        className="w-full"
+                      />
+                    </span>
+                  )}
+                  <span>
+                    {item.product_name} ({orderItemVariantLabel(item)}) x{item.quantity}
+                  </span>
+                </span>
+                <span className="font-semibold">{formatPrice(item.line_total)}</span>
+              </div>
+            );
+          })}
         </div>
 
         <div className="mt-4 flex items-center justify-between border-t border-border pt-4">

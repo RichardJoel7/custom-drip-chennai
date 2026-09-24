@@ -19,16 +19,35 @@ export const checkoutFormSchema = z.object({
 
 export type CheckoutFormValues = z.infer<typeof checkoutFormSchema>;
 
-export const cartItemPayloadSchema = z.object({
+// `type` is optional so a tab opened before custom tees shipped can still check out.
+export const productItemPayloadSchema = z.object({
+  type: z.literal("product").optional(),
   productId: z.string().uuid(),
   variantId: z.string().uuid(),
   quantity: z.number().int().positive().max(20),
 });
 
+export const customItemPayloadSchema = z
+  .object({
+    type: z.literal("custom"),
+    colorId: z.string().uuid(),
+    sizeId: z.string().uuid(),
+    printOptionId: z.string().uuid(),
+    sides: z.enum(["front", "back", "both"]),
+    frontDesignId: z.string().uuid().nullable(),
+    backDesignId: z.string().uuid().nullable(),
+    quantity: z.number().int().positive().max(20),
+  })
+  .refine((item) => item.sides === "back" || item.frontDesignId, { message: "Choose a front design" })
+  .refine((item) => item.sides === "front" || item.backDesignId, { message: "Choose a back design" });
+
 export const placeOrderSchema = z.object({
   ...checkoutFormSchema.shape,
   upiTransactionId: z.string().trim().min(4, "Enter your UPI transaction/reference ID"),
-  items: z.array(cartItemPayloadSchema).min(1, "Your cart is empty"),
+  items: z
+    .array(z.union([customItemPayloadSchema, productItemPayloadSchema]))
+    .min(1, "Your cart is empty")
+    .max(50, "Too many items in one order"),
 });
 
 export type PlaceOrderInput = z.infer<typeof placeOrderSchema>;

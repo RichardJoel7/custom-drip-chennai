@@ -1,25 +1,31 @@
 "use client";
 
-import { useCart } from "@/components/cart/cart-context";
 import { CartItemRow } from "@/components/cart/cart-item-row";
+import { usePricedCart } from "@/components/cart/use-priced-cart";
 import { LinkButton } from "@/components/ui/button";
+import { cartLineKey } from "@/lib/custom/pricing";
 import { formatPrice } from "@/lib/utils/format";
 import { calculateShipping } from "@/lib/utils/shipping";
-import type { Settings } from "@/types";
+import type { CustomCatalog, Settings } from "@/types";
 
-export function CartView({ settings }: { settings: Settings }) {
-  const { items, subtotal, isHydrated } = useCart();
+export function CartView({ settings, catalog }: { settings: Settings; catalog: CustomCatalog | null }) {
+  const { lines, subtotal, hasUnavailable, isHydrated } = usePricedCart(catalog);
 
   if (!isHydrated) return null;
 
-  if (items.length === 0) {
+  if (lines.length === 0) {
     return (
       <div className="mx-auto max-w-xl px-4 py-20 text-center">
         <h1 className="font-display text-3xl tracking-wide">YOUR CART IS EMPTY</h1>
         <p className="mt-2 text-muted-foreground">Time to find your next favourite tee.</p>
-        <LinkButton href="/shop" size="lg" className="mt-6">
-          Shop the Drop
-        </LinkButton>
+        <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <LinkButton href="/shop" size="lg">
+            Shop the Drop
+          </LinkButton>
+          <LinkButton href="/customize" variant="outline" size="lg">
+            Design Your Own
+          </LinkButton>
+        </div>
       </div>
     );
   }
@@ -32,8 +38,8 @@ export function CartView({ settings }: { settings: Settings }) {
       <h1 className="font-display text-3xl tracking-wide sm:text-4xl">YOUR CART</h1>
 
       <div className="mt-6">
-        {items.map((item) => (
-          <CartItemRow key={item.variantId} item={item} />
+        {lines.map(({ item, unitPrice }) => (
+          <CartItemRow key={cartLineKey(item)} item={item} unitPrice={unitPrice} />
         ))}
       </div>
 
@@ -57,9 +63,15 @@ export function CartView({ settings }: { settings: Settings }) {
         </div>
       </div>
 
-      <LinkButton href="/checkout" size="lg" className="mt-6 w-full">
-        Proceed to Checkout
-      </LinkButton>
+      {hasUnavailable ? (
+        <p className="mt-6 text-center text-sm font-semibold text-danger">
+          Remove the unavailable item above to continue to checkout.
+        </p>
+      ) : (
+        <LinkButton href="/checkout" size="lg" className="mt-6 w-full">
+          Proceed to Checkout
+        </LinkButton>
+      )}
     </div>
   );
 }

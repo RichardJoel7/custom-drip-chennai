@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CustomItemCard } from "@/components/admin/custom-item-card";
 import { OrderStatusSelect } from "@/components/admin/order-status-select";
+import { customDetailsOf } from "@/lib/custom/order-item";
 import { PaymentVerificationPanel } from "@/components/admin/payment-verification-panel";
 import { ShipmentForm } from "@/components/admin/shipment-form";
 import { formatDateTime, formatPrice } from "@/lib/utils/format";
@@ -69,18 +71,22 @@ export default async function AdminOrderDetailPage({
             Products
           </p>
           <div className="space-y-2">
-            {order.order_items.map((item) => (
-              <div key={item.id} className="flex items-center justify-between text-sm">
-                <span>
-                  {item.product_name}
-                  <span className="text-muted-foreground">
-                    {" "}
-                    · {item.color} / {item.size} · Qty {item.quantity}
+            {order.order_items.map((item) => {
+              const details = customDetailsOf(item);
+              if (details) return <CustomItemCard key={item.id} item={item} details={details} />;
+              return (
+                <div key={item.id} className="flex items-center justify-between text-sm">
+                  <span>
+                    {item.product_name}
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · {item.color} / {item.size} · Qty {item.quantity}
+                    </span>
                   </span>
-                </span>
-                <span className="font-semibold">{formatPrice(item.line_total)}</span>
-              </div>
-            ))}
+                  <span className="font-semibold">{formatPrice(item.line_total)}</span>
+                </div>
+              );
+            })}
           </div>
           <div className="mt-3 space-y-1 border-t border-border pt-3 text-sm">
             <div className="flex justify-between">

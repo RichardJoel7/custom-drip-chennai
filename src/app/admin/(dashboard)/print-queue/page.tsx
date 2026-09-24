@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CustomItemCard } from "@/components/admin/custom-item-card";
+import { customDetailsOf } from "@/lib/custom/order-item";
 import { requireAdmin } from "@/lib/supabase/require-admin";
 import type { OrderWithItems } from "@/types";
 
@@ -31,13 +33,17 @@ export default async function PrintQueuePage() {
             <div key={order.id} className="border border-border p-4">
               <p className="font-semibold">{order.order_number}</p>
 
-              <div className="mt-3 space-y-1">
-                {order.order_items.map((item) => (
-                  <p key={item.id} className="text-sm">
-                    {item.product_name} — {item.color} / {item.size}{" "}
-                    <span className="font-semibold">Qty: {item.quantity}</span>
-                  </p>
-                ))}
+              <div className="mt-3 space-y-2">
+                {order.order_items.map((item) => {
+                  const details = customDetailsOf(item);
+                  if (details) return <CustomItemCard key={item.id} item={item} details={details} />;
+                  return (
+                    <p key={item.id} className="text-sm">
+                      {item.product_name} — {item.color} / {item.size}{" "}
+                      <span className="font-semibold">Qty: {item.quantity}</span>
+                    </p>
+                  );
+                })}
               </div>
 
               <Link

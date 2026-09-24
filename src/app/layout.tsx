@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Mona_Sans } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/components/cart/cart-context";
+import { StagingBanner } from "@/components/layout/staging-banner";
+import { isStaging } from "@/lib/utils/app-env";
 
 const monaSans = Mona_Sans({
   variable: "--font-mona-sans",
@@ -27,6 +29,8 @@ export const metadata: Metadata = {
     locale: "en_IN",
     type: "website",
   },
+  // keep the staging copy of the site out of search results
+  robots: isStaging ? { index: false, follow: false } : undefined,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -36,6 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${monaSans.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground" suppressHydrationWarning>
+        {isStaging && <StagingBanner />}
         <CartProvider>{children}</CartProvider>
       </body>
     </html>

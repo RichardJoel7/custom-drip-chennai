@@ -83,7 +83,7 @@ export interface Customer {
 export interface OrderItem {
   id: string;
   order_id: string;
-  product_id: string;
+  product_id: string | null;
   variant_id: string | null;
   product_name: string;
   size: string;
@@ -92,6 +92,9 @@ export interface OrderItem {
   unit_price: number;
   line_total: number;
   created_at: string;
+  // Absent on databases that haven't run 0009_custom_studio.sql yet.
+  is_custom?: boolean;
+  custom_details?: CustomItemDetails | null;
 }
 
 export interface Order {
@@ -140,8 +143,93 @@ export interface Settings {
   updated_at: string;
 }
 
-// Client-side cart (persisted to localStorage, never trusted for pricing).
-export interface CartItem {
+// --- Custom Studio -----------------------------------------------------------------
+
+export type PrintSides = "front" | "back" | "both";
+export type FrontPlacement = "center" | "left_chest";
+
+export interface CustomTeeSize {
+  id: string;
+  label: string;
+  price: number;
+  sort_order: number;
+  is_active: boolean;
+}
+
+export interface CustomTeeColor {
+  id: string;
+  name: string;
+  hex: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
+/** A null price means that side combination isn't offered for this print size. */
+export interface CustomPrintOption {
+  id: string;
+  name: string;
+  description: string | null;
+  width_cm: number;
+  height_cm: number;
+  front_placement: FrontPlacement;
+  price_front: number | null;
+  price_back: number | null;
+  price_both: number | null;
+  sort_order: number;
+  is_active: boolean;
+}
+
+export interface CustomCatalog {
+  sizes: CustomTeeSize[];
+  colors: CustomTeeColor[];
+  printOptions: CustomPrintOption[];
+}
+
+export interface Design {
+  id: string;
+  name: string;
+  category: string | null;
+  image_url: string;
+  storage_path: string;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export type StudioDesign = Pick<Design, "id" | "name" | "category" | "image_url">;
+
+/** What the customer picked — the only thing the server trusts; it re-prices from the DB. */
+export interface CustomTeeConfig {
+  colorId: string;
+  sizeId: string;
+  printOptionId: string;
+  sides: PrintSides;
+  frontDesignId: string | null;
+  backDesignId: string | null;
+}
+
+/** Snapshot place_order() stores on a custom order line (built server-side from DB rows). */
+export interface CustomItemDetails {
+  color_hex: string;
+  sides: PrintSides;
+  tee_price: number;
+  print_price: number;
+  print_option: {
+    id: string;
+    name: string;
+    width_cm: number;
+    height_cm: number;
+    front_placement: FrontPlacement;
+  };
+  front_design: { id: string; name: string; image_url: string } | null;
+  back_design: { id: string; name: string; image_url: string } | null;
+}
+
+// --- Cart (persisted to localStorage, never trusted for pricing) -----------------------
+
+export interface ProductCartItem {
+  // Carts saved before custom tees existed have no `kind`, so it's optional here.
+  kind?: "product";
   productId: string;
   variantId: string;
   slug: string;
@@ -153,3 +241,22 @@ export interface CartItem {
   quantity: number;
   maxStock: number;
 }
+
+export interface CustomCartItem {
+  kind: "custom";
+  /** Stable id derived from the config, so identical custom tees merge into one line. */
+  key: string;
+  config: CustomTeeConfig;
+  name: string;
+  colorName: string;
+  colorHex: string;
+  sizeLabel: string;
+  printOption: Pick<CustomPrintOption, "name" | "width_cm" | "height_cm" | "front_placement">;
+  frontDesign: StudioDesign | null;
+  backDesign: StudioDesign | null;
+  price: number;
+  quantity: number;
+  maxStock: number;
+}
+
+export type CartItem = ProductCartItem | CustomCartItem;

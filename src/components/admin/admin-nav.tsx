@@ -4,13 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 
+// mobileLabel keeps all seven items on one row of a 375px phone's bottom bar.
 export const ADMIN_NAV_LINKS = [
-  { href: "/admin", label: "Dashboard", icon: "📊" },
-  { href: "/admin/products", label: "Products", icon: "👕" },
-  { href: "/admin/orders", label: "Orders", icon: "📦" },
-  { href: "/admin/print-queue", label: "Print Queue", icon: "🖨️" },
-  { href: "/admin/customers", label: "Customers", icon: "👤" },
-  { href: "/admin/settings", label: "Settings", icon: "⚙️" },
+  { href: "/admin", label: "Dashboard", mobileLabel: "Home", icon: "📊" },
+  { href: "/admin/products", label: "Products", mobileLabel: "Products", icon: "👕" },
+  { href: "/admin/customizer", label: "Customizer", mobileLabel: "Studio", icon: "🎨" },
+  { href: "/admin/orders", label: "Orders", mobileLabel: "Orders", icon: "📦" },
+  { href: "/admin/print-queue", label: "Print Queue", mobileLabel: "Print", icon: "🖨️" },
+  { href: "/admin/customers", label: "Customers", mobileLabel: "Buyers", icon: "👤" },
+  { href: "/admin/settings", label: "Settings", mobileLabel: "Settings", icon: "⚙️" },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -59,7 +61,7 @@ export function AdminMobileNav() {
           <span aria-hidden="true" className="text-base">
             {link.icon}
           </span>
-          {link.label}
+          {link.mobileLabel}
         </Link>
       ))}
     </nav>

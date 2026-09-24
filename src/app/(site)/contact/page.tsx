@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { LinkButton } from "@/components/ui/button";
 import { InstagramIcon, WhatsAppIcon } from "@/components/icons/social-icons";
+import { whatsappUrl } from "@/lib/utils/contact-links";
 import { getSettings } from "@/services/settings";
 
 export const metadata: Metadata = {
@@ -27,7 +28,7 @@ export default async function ContactPage() {
 
         {settings.whatsapp_number && (
           <LinkButton
-            href={`https://wa.me/${settings.whatsapp_number.replace(/\D/g, "")}`}
+            href={whatsappUrl(settings.whatsapp_number)}
             external
             variant="outline"
             size="lg"
