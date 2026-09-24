@@ -3,6 +3,7 @@ import type {
   CustomCatalog,
   CustomPrintOption,
   CustomTeeColor,
+  CustomTeeGsm,
   CustomTeeSize,
   Design,
   StudioDesign,
@@ -10,29 +11,38 @@ import type {
 
 type ServerClient = Awaited<ReturnType<typeof createServerSupabaseClient>>;
 
-const EMPTY_CATALOG: CustomCatalog = { sizes: [], colors: [], printOptions: [] };
+const EMPTY_CATALOG: CustomCatalog = { sizes: [], colors: [], gsmOptions: [], printOptions: [] };
 const PAGE_SIZE = 1000; // PostgREST's default max rows per request
 
 // Every read tolerates the tables not existing yet (0009_custom_studio.sql not run), so the
-// storefront keeps working — the studio just shows its "being set up" state.
-async function fetchCatalog(supabase: ServerClient, activeOnly: boolean): Promise<CustomCatalog> {
+// storefront keeps working — the studio just shows its "being set up" state. GSM options
+// (0010) are optional on top of that: without the table the studio simply has no GSM step.
+async function fetchCatalog(
+  supabase: ServerClient,
+  activeOnly: boolean
+): Promise<{ catalog: CustomCatalog; gsmReady: boolean }> {
   const table = (name: string) => {
     let query = supabase.from(name).select("*").order("sort_order").order("id");
     if (activeOnly) query = query.eq("is_active", true);
     return query;
   };
 
-  const [sizes, colors, printOptions] = await Promise.all([
+  const [sizes, colors, gsmOptions, printOptions] = await Promise.all([
     table("custom_tee_sizes"),
     table("custom_tee_colors"),
+    table("custom_tee_gsm_options"),
     table("custom_print_options"),
   ]);
 
-  if (sizes.error || colors.error || printOptions.error) return EMPTY_CATALOG;
+  const gsmReady = !gsmOptions.error;
+  if (sizes.error || colors.error || printOptions.error) return { catalog: EMPTY_CATALOG, gsmReady };
 
-  return {
+  const catalog: CustomCatalog = {
     sizes: ((sizes.data ?? []) as CustomTeeSize[]).map((s) => ({ ...s, price: Number(s.price) })),
     colors: (colors.data ?? []) as CustomTeeColor[],
+    gsmOptions: gsmReady
+      ? ((gsmOptions.data ?? []) as CustomTeeGsm[]).map((g) => ({ ...g, gsm: Number(g.gsm), price: Number(g.price) }))
+      : [],
     printOptions: ((printOptions.data ?? []) as CustomPrintOption[]).map((o) => ({
       ...o,
       width_cm: Number(o.width_cm),
@@ -42,14 +52,18 @@ async function fetchCatalog(supabase: ServerClient, activeOnly: boolean): Promis
       price_both: o.price_both === null ? null : Number(o.price_both),
     })),
   };
+  return { catalog, gsmReady };
 }
 
 export async function getCustomCatalog(): Promise<CustomCatalog> {
-  return fetchCatalog(await createServerSupabaseClient(), true);
+  return (await fetchCatalog(await createServerSupabaseClient(), true)).catalog;
 }
 
-/** Admin-only: includes inactive rows (RLS lets admins see them). */
-export async function getCustomCatalogForAdmin(): Promise<CustomCatalog | null> {
+/**
+ * Admin-only: includes inactive rows (RLS lets admins see them). Null means 0009 hasn't
+ * been run; gsmReady is false until 0010 has been.
+ */
+export async function getCustomCatalogForAdmin(): Promise<{ catalog: CustomCatalog; gsmReady: boolean } | null> {
   const supabase = await createServerSupabaseClient();
   const probe = await supabase.from("custom_tee_sizes").select("id").limit(1);
   if (probe.error) return null;

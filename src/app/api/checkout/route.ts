@@ -15,7 +15,7 @@ const FRIENDLY_ERRORS: Record<string, string> = {
   OUT_OF_STOCK: "One of the items in your cart just sold out. Please update your cart.",
   INVALID_CUSTOM_ITEM: "One of your custom tees is incomplete. Please design it again.",
   CUSTOM_OPTION_UNAVAILABLE:
-    "A colour, size or print option on one of your custom tees is no longer available. Please design it again.",
+    "A colour, size, fabric or print option on one of your custom tees is no longer available. Please design it again.",
   DESIGN_UNAVAILABLE: "A design on one of your custom tees is no longer available. Please pick another design.",
 };
 
@@ -68,6 +68,7 @@ export async function POST(request: Request) {
           {
             size_id: item.sizeId,
             color_id: item.colorId,
+            gsm_id: item.gsmId ?? null,
             print_option_id: item.printOptionId,
             sides: item.sides,
             front_design_id: item.sides === "back" ? null : item.frontDesignId,

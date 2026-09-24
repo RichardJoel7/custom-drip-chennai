@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { TeeMockup } from "@/components/custom/tee-mockup";
-import { SIDE_LABELS, sidesNeedBack, sidesNeedFront } from "@/lib/custom/pricing";
+import { SIDE_LABELS, gsmLabel, sidesNeedBack, sidesNeedFront } from "@/lib/custom/pricing";
 import { formatPrice } from "@/lib/utils/format";
 import type { CustomItemDetails, OrderItem } from "@/types";
 
@@ -24,6 +24,7 @@ export function CustomItemCard({ item, details }: { item: OrderItem; details: Cu
               style={{ backgroundColor: details.color_hex }}
             />
             {item.color} · Size {item.size}
+            {details.gsm && <span className="font-semibold">· {gsmLabel(details.gsm.gsm)}</span>}
           </p>
           <p className="text-sm">
             {details.print_option.name} ({printSize}) · {SIDE_LABELS[details.sides]}

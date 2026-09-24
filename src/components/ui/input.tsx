@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import type { InputHTMLAttributes, TextareaHTMLAttributes, LabelHTMLAttributes } from "react";
+import type { InputHTMLAttributes, LabelHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/utils/cn";
 
 export const Label = forwardRef<HTMLLabelElement, LabelHTMLAttributes<HTMLLabelElement>>(
@@ -29,6 +29,34 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
   )
 );
 Textarea.displayName = "Textarea";
+
+/** Native select (the phone's own picker on mobile) styled like Input, with a chevron. */
+export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
+  ({ className, children, ...props }, ref) => (
+    <div className="relative">
+      <select
+        ref={ref}
+        className={cn(
+          fieldBase,
+          "cursor-pointer appearance-none pr-10 invalid:text-muted-foreground disabled:cursor-not-allowed [&_option]:text-foreground",
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </select>
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        aria-hidden="true"
+        className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+      >
+        <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  )
+);
+Select.displayName = "Select";
 
 export function FieldError({ children }: { children?: string }) {
   if (!children) return null;

@@ -123,11 +123,11 @@ export function SiteHeader({
       {/* Absolute + invisible: the hero's -mt-16 assumes the header is exactly the 64px pill. */}
       <div
         className={cn(
-          "glass absolute inset-x-3 top-full mt-2 overflow-hidden rounded-3xl text-white transition-[max-height,visibility] duration-200 sm:inset-x-6 md:hidden",
-          menuOpen ? "visible max-h-[32rem]" : "invisible max-h-0"
+          "glass-menu absolute inset-x-3 top-full mt-2 overflow-y-auto overscroll-contain rounded-3xl text-white transition-[max-height,visibility] duration-200 sm:inset-x-6 md:hidden",
+          menuOpen ? "visible max-h-[calc(100dvh-6.5rem)]" : "invisible max-h-0"
         )}
       >
-        <nav className="flex flex-col bg-black/65 px-5 py-2">
+        <nav className="flex flex-col px-5 py-2">
           <Link
             href="/"
             onClick={closeMobileMenu}
@@ -152,14 +152,26 @@ export function SiteHeader({
               </Link>
               <MobileGenderAccordion label="Men's" gender="men" collections={shopMenu.men} onNavigate={closeMobileMenu} />
               <MobileGenderAccordion label="Women's" gender="women" collections={shopMenu.women} onNavigate={closeMobileMenu} />
-              <Link href="/customize" onClick={closeMobileMenu} className="block py-2 text-sm font-semibold uppercase tracking-wide opacity-80">
-                Customize Yourself
-              </Link>
-              <Link href="/bulk-orders" onClick={closeMobileMenu} className="block py-2 text-sm font-semibold uppercase tracking-wide opacity-80">
-                Bulk/Corporate Orders
-              </Link>
             </div>
           )}
+
+          <Link
+            href="/customize"
+            onClick={closeMobileMenu}
+            className="flex items-center justify-between border-b border-white/15 py-4 text-base font-semibold uppercase tracking-wide"
+          >
+            Customize Yourself
+            <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold tracking-wider text-accent-foreground">
+              New
+            </span>
+          </Link>
+          <Link
+            href="/bulk-orders"
+            onClick={closeMobileMenu}
+            className="border-b border-white/15 py-4 text-base font-semibold uppercase tracking-wide"
+          >
+            Bulk / Corporate Orders
+          </Link>
 
           <Link
             href="/about"
@@ -237,7 +249,7 @@ function ShopMenuDropdown({ shopMenu }: { shopMenu: ShopMenu }) {
         Shop
       </Link>
       <div className="invisible absolute left-1/2 top-full z-50 -translate-x-1/2 pt-3 opacity-0 transition-opacity duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
-        <div className="glass w-64 rounded-2xl p-2 text-white shadow-lg shadow-black/10">
+        <div className="glass-menu w-64 rounded-2xl p-2 text-white">
           <ShopMenuGenderRow label="Men's" gender="men" collections={shopMenu.men} />
           <ShopMenuGenderRow label="Women's" gender="women" collections={shopMenu.women} />
           <div className="my-1 border-t border-white/15" />
@@ -280,7 +292,7 @@ function ShopMenuGenderRow({
         <ChevronIcon direction="right" />
       </Link>
       <div className="invisible absolute left-full top-0 z-50 pl-2 opacity-0 transition-opacity duration-150 group-hover/sub:visible group-hover/sub:opacity-100 group-focus-within/sub:visible group-focus-within/sub:opacity-100">
-        <div className="glass w-56 rounded-2xl p-2 text-white shadow-lg shadow-black/10">
+        <div className="glass-menu w-56 rounded-2xl p-2 text-white">
           {collections.map((c) => (
             <Link
               key={c}
@@ -382,7 +394,7 @@ function ProfileMenu({ user }: { user: import("@supabase/supabase-js").User | nu
             className="fixed inset-0 z-40 cursor-default"
             onClick={() => setOpen(false)}
           />
-          <div className="glass absolute right-0 top-full z-50 mt-2 w-48 rounded-2xl p-2 text-white shadow-lg shadow-black/10">
+          <div className="glass-menu absolute right-0 top-full z-50 mt-2 w-48 rounded-2xl p-2 text-white">
             {user ? (
               <>
                 <p className="truncate px-3 py-2 text-xs text-white/60">{user.email}</p>

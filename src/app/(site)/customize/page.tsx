@@ -35,6 +35,7 @@ export default async function CustomizePage() {
   const artworkHref = settings.whatsapp_number ? whatsappUrl(settings.whatsapp_number, OWN_ARTWORK_MESSAGE) : null;
   const fromPrice = studioReady
     ? Math.min(...catalog.sizes.map((s) => s.price)) +
+      (catalog.gsmOptions.length > 0 ? Math.min(...catalog.gsmOptions.map((g) => g.price)) : 0) +
       Math.min(
         ...catalog.printOptions.flatMap((o) =>
           (["front", "back", "both"] as const).map((s) => printPriceFor(o, s)).filter((p): p is number => p !== null)

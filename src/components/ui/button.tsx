@@ -55,6 +55,15 @@ export function LinkButton({
   external?: boolean;
   children: React.ReactNode;
 }) {
+  // mailto:/tel: open the visitor's mail or phone app — a plain link, no new tab.
+  if (/^(mailto|tel):/.test(href)) {
+    return (
+      <a href={href} className={cn(base, variantClasses[variant], sizeClasses[size], className)}>
+        {children}
+      </a>
+    );
+  }
+
   if (external || href.startsWith("http")) {
     return (
       <a

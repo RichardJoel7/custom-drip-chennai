@@ -8,7 +8,11 @@ export const metadata: Metadata = { title: "Customizer — Price List" };
 
 export default async function CustomizerPricePage() {
   await requireAdmin();
-  const catalog = await getCustomCatalogForAdmin();
+  const result = await getCustomCatalogForAdmin();
 
-  return <div className="max-w-3xl">{catalog ? <CustomCatalogForm catalog={catalog} /> : <MigrationNotice />}</div>;
+  return (
+    <div className="max-w-3xl">
+      {result ? <CustomCatalogForm catalog={result.catalog} gsmReady={result.gsmReady} /> : <MigrationNotice />}
+    </div>
+  );
 }

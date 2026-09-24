@@ -10,14 +10,19 @@ export const checkoutFormSchema = z.object({
   addressLine1: z.string().trim().min(5, "Enter your address"),
   addressLine2: z.string().trim().optional(),
   area: z.string().trim().optional(),
-  city: z.string().trim().min(2, "Enter your city"),
-  state: z.string().trim().min(2, "Enter your state"),
+  city: z.string().trim().min(2, "Choose or type your city"),
+  state: z.string().trim().min(2, "Choose or type your state"),
   pincode: z.string().trim().regex(/^\d{6}$/, "Enter a valid 6-digit pincode"),
   instagramUsername: z.string().trim().optional(),
   orderNotes: z.string().trim().optional(),
 });
 
 export type CheckoutFormValues = z.infer<typeof checkoutFormSchema>;
+
+/** What "Save these details for future orders" keeps — everything except the order notes. */
+export const savedDetailsSchema = checkoutFormSchema.omit({ orderNotes: true });
+
+export type SavedCheckoutDetails = z.infer<typeof savedDetailsSchema>;
 
 // `type` is optional so a tab opened before custom tees shipped can still check out.
 export const productItemPayloadSchema = z.object({
@@ -32,6 +37,8 @@ export const customItemPayloadSchema = z
     type: z.literal("custom"),
     colorId: z.string().uuid(),
     sizeId: z.string().uuid(),
+    // optional: carts saved before GSM options existed don't have it
+    gsmId: z.string().uuid().nullable().optional(),
     printOptionId: z.string().uuid(),
     sides: z.enum(["front", "back", "both"]),
     frontDesignId: z.string().uuid().nullable(),

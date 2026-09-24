@@ -22,6 +22,14 @@ export interface ColorRowInput {
   isActive: boolean;
 }
 
+export interface GsmRowInput {
+  id?: string;
+  gsm: number;
+  description: string;
+  price: number;
+  isActive: boolean;
+}
+
 export interface PrintOptionRowInput {
   id?: string;
   name: string;
@@ -51,7 +59,7 @@ function findDuplicate(values: string[]) {
 
 /** Replaces a price-list table with the submitted rows: updates kept ids, inserts new, deletes removed. */
 async function syncTable<Row extends { id?: string }>(
-  table: "custom_tee_sizes" | "custom_tee_colors" | "custom_print_options",
+  table: "custom_tee_sizes" | "custom_tee_colors" | "custom_tee_gsm_options" | "custom_print_options",
   rows: Row[],
   toRecord: (row: Row, index: number) => Record<string, unknown>
 ): Promise<Result> {
@@ -113,6 +121,23 @@ export async function saveTeeColors(rows: ColorRowInput[]): Promise<Result> {
   return syncTable("custom_tee_colors", rows, (r, index) => ({
     name: r.name.trim(),
     hex: r.hex.toLowerCase(),
+    is_active: r.isActive,
+    sort_order: index,
+  }));
+}
+
+export async function saveGsmOptions(rows: GsmRowInput[]): Promise<Result> {
+  if (rows.some((r) => !(Number.isInteger(r.gsm) && r.gsm >= 100 && r.gsm <= 600))) {
+    return { error: "GSM must be a whole number between 100 and 600, e.g. 180." };
+  }
+  if (rows.some((r) => !isPrice(r.price))) return { error: "Enter a valid extra price for every GSM (0 if none)." };
+  const duplicate = findDuplicate(rows.map((r) => String(r.gsm)));
+  if (duplicate) return { error: `${duplicate} GSM is listed twice.` };
+
+  return syncTable("custom_tee_gsm_options", rows, (r, index) => ({
+    gsm: r.gsm,
+    description: r.description.trim() || null,
+    price: r.price,
     is_active: r.isActive,
     sort_order: index,
   }));

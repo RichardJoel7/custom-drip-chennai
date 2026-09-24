@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Toggle } from "@/components/ui/toggle";
+import { MigrationNotice } from "@/components/admin/migration-notice";
 import {
+  saveGsmOptions,
   savePrintOptions,
   saveTeeColors,
   saveTeeSizes,
   type ColorRowInput,
+  type GsmRowInput,
   type PrintOptionRowInput,
   type SizeRowInput,
 } from "@/app/admin/(dashboard)/customizer/actions";
@@ -20,6 +23,7 @@ import type { CustomCatalog, FrontPlacement } from "@/types";
 // Numeric fields are kept as strings while typing so "" and "12." stay editable.
 type SizeDraft = { key: string; id?: string; label: string; price: string; isActive: boolean };
 type ColorDraft = { key: string; id?: string; name: string; hex: string; isActive: boolean };
+type GsmDraft = { key: string; id?: string; gsm: string; description: string; price: string; isActive: boolean };
 type PrintDraft = {
   key: string;
   id?: string;
@@ -49,12 +53,22 @@ function move<T>(list: T[], index: number, delta: number) {
   return next;
 }
 
-export function CustomCatalogForm({ catalog }: { catalog: CustomCatalog }) {
+export function CustomCatalogForm({ catalog, gsmReady }: { catalog: CustomCatalog; gsmReady: boolean }) {
   const [sizes, setSizes] = useState<SizeDraft[]>(() =>
     catalog.sizes.map((s) => ({ key: s.id, id: s.id, label: s.label, price: String(s.price), isActive: s.is_active }))
   );
   const [colors, setColors] = useState<ColorDraft[]>(() =>
     catalog.colors.map((c) => ({ key: c.id, id: c.id, name: c.name, hex: c.hex, isActive: c.is_active }))
+  );
+  const [gsms, setGsms] = useState<GsmDraft[]>(() =>
+    catalog.gsmOptions.map((g) => ({
+      key: g.id,
+      id: g.id,
+      gsm: String(g.gsm),
+      description: g.description ?? "",
+      price: String(g.price),
+      isActive: g.is_active,
+    }))
   );
   const [prints, setPrints] = useState<PrintDraft[]>(() =>
     catalog.printOptions.map((o) => ({
@@ -73,11 +87,12 @@ export function CustomCatalogForm({ catalog }: { catalog: CustomCatalog }) {
   );
 
   const exampleSize = sizes.find((s) => s.isActive && s.label.toUpperCase() === "L") ?? sizes.find((s) => s.isActive);
+  const exampleGsm = [...gsms].reverse().find((g) => g.isActive);
   const examplePrint = prints.find((p) => p.isActive && toPrice(p.priceBoth) !== null);
   const example =
     exampleSize && examplePrint
-      ? `Size ${exampleSize.label} + ${examplePrint.name} front & back = ${formatPrice(
-          (Number(exampleSize.price) || 0) + (Number(examplePrint.priceBoth) || 0)
+      ? `Size ${exampleSize.label}${exampleGsm ? ` + ${exampleGsm.gsm} GSM` : ""} + ${examplePrint.name} front & back = ${formatPrice(
+          (Number(exampleSize.price) || 0) + (Number(exampleGsm?.price) || 0) + (Number(examplePrint.priceBoth) || 0)
         )} per tee`
       : null;
 
@@ -85,7 +100,8 @@ export function CustomCatalogForm({ catalog }: { catalog: CustomCatalog }) {
     <div className="space-y-8">
       {example && (
         <p className="rounded-2xl bg-muted px-4 py-3 text-sm">
-          <span className="font-semibold">Example price:</span> {example}. The customer pays tee price + print price.
+          <span className="font-semibold">Example price:</span> {example}. The customer pays tee price
+          {gsms.some((g) => g.isActive) ? " + GSM extra" : ""} + print price.
         </p>
       )}
 
@@ -175,6 +191,64 @@ export function CustomCatalogForm({ catalog }: { catalog: CustomCatalog }) {
           </Row>
         ))}
       </Section>
+
+      {gsmReady ? (
+        <Section
+          title="FABRIC WEIGHT (GSM)"
+          description="Heavier fabric can cost more — the extra price is added to the tee price. Leave this list empty to hide the GSM choice. The first live GSM is the studio's default."
+          save={() =>
+            saveGsmOptions(
+              gsms.map<GsmRowInput>((g) => ({
+                id: g.id,
+                gsm: toNumber(g.gsm),
+                description: g.description,
+                price: toNumber(g.price),
+                isActive: g.isActive,
+              }))
+            )
+          }
+          onAdd={() => setGsms((list) => [...list, { key: newKey(), gsm: "", description: "", price: "0", isActive: true }])}
+          addLabel="+ Add GSM"
+        >
+          {gsms.map((g, i) => {
+            const set = (patch: Partial<GsmDraft>) =>
+              setGsms((l) => l.map((x) => (x.key === g.key ? { ...x, ...patch } : x)));
+            return (
+              <Row
+                key={g.key}
+                onUp={() => setGsms((l) => move(l, i, -1))}
+                onDown={() => setGsms((l) => move(l, i, 1))}
+                onRemove={() => setGsms((l) => l.filter((x) => x.key !== g.key))}
+                isActive={g.isActive}
+                onActive={(v) => set({ isActive: v })}
+              >
+                <Field label="GSM">
+                  <Input inputMode="numeric" value={g.gsm} placeholder="240" onChange={(e) => set({ gsm: e.target.value })} />
+                </Field>
+                <Field label="Extra price (₹)">
+                  <Input inputMode="decimal" value={g.price} placeholder="0" onChange={(e) => set({ price: e.target.value })} />
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Short description">
+                    <Input
+                      value={g.description}
+                      placeholder="Heavyweight — thick, premium streetwear feel"
+                      onChange={(e) => set({ description: e.target.value })}
+                    />
+                  </Field>
+                </div>
+              </Row>
+            );
+          })}
+        </Section>
+      ) : (
+        <section className="border border-border p-4 sm:p-6">
+          <h2 className="font-display text-xl tracking-wide">FABRIC WEIGHT (GSM)</h2>
+          <div className="mt-4">
+            <MigrationNotice file="0010_gsm_and_saved_details.sql" />
+          </div>
+        </section>
+      )}
 
       <Section
         title="PRINT SIZES & RATES"

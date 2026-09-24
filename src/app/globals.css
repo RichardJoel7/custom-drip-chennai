@@ -79,6 +79,15 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
+/* Dropdown menus: a solid dark panel with a faint top sheen, so busy hero artwork never
+   shows through the menu text. (Menus inside the header pill can't blur the page anyway —
+   the pill's own backdrop-filter isolates them.) */
+.glass-menu {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 45%), #0c0c0c;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.55);
+}
+
 .glass-light {
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(16px) saturate(160%);

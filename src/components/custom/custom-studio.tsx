@@ -12,6 +12,7 @@ import {
   MAX_CUSTOM_QUANTITY,
   SIDE_LABELS,
   customCartKey,
+  gsmLabel,
   printPriceFor,
   sidesNeedBack,
   sidesNeedFront,
@@ -35,7 +36,7 @@ export function CustomStudio({
   designs: StudioDesign[];
   ownArtworkHref: string | null;
 }) {
-  const { sizes, colors, printOptions } = catalog;
+  const { sizes, colors, gsmOptions, printOptions } = catalog;
   const router = useRouter();
   const { addItem } = useCart();
 
@@ -49,6 +50,7 @@ export function CustomStudio({
   const [sizeId, setSizeId] = useState(
     (sizes.find((s) => s.label.toUpperCase() === "L") ?? sizes[Math.floor(sizes.length / 2)])?.id ?? ""
   );
+  const [gsmId, setGsmId] = useState(gsmOptions[0]?.id ?? null);
   const [sides, setSides] = useState<PrintSides>(initialSides);
   const [printOptionId, setPrintOptionId] = useState(
     printOptions.find((o) => printPriceFor(o, initialSides) !== null)?.id ?? ""
@@ -67,21 +69,25 @@ export function CustomStudio({
 
   const color = colors.find((c) => c.id === colorId) ?? colors[0];
   const size = sizes.find((s) => s.id === sizeId) ?? sizes[0];
+  const gsm = gsmOptions.find((g) => g.id === gsmId) ?? null;
   const option = printOptions.find((o) => o.id === printOptionId);
   const needFront = sidesNeedFront(sides);
   const needBack = sidesNeedBack(sides);
+  // No GSM choice offered = nothing extra to pay; offered but none picked = no price yet.
+  const gsmPrice = gsmOptions.length === 0 ? 0 : gsm ? gsm.price : null;
   const printPrice = option ? printPriceFor(option, sides) : null;
-  const unitPrice = size && printPrice !== null ? size.price + printPrice : null;
+  const unitPrice = size && gsmPrice !== null && printPrice !== null ? size.price + gsmPrice + printPrice : null;
   const total = unitPrice === null ? null : unitPrice * quantity;
   const sizePricesVary = new Set(sizes.map((s) => s.price)).size > 1;
 
   const missing = useMemo(() => {
     const list: string[] = [];
+    if (gsmOptions.length > 0 && !gsm) list.push("a fabric weight");
     if (!option || printPrice === null) list.push("a print size");
     if (needFront && !frontDesign) list.push("a front design");
     if (needBack && !backDesign) list.push("a back design");
     return list;
-  }, [option, printPrice, needFront, needBack, frontDesign, backDesign]);
+  }, [gsmOptions.length, gsm, option, printPrice, needFront, needBack, frontDesign, backDesign]);
 
   function chooseSides(next: PrintSides) {
     setSides(next);
@@ -112,6 +118,7 @@ export function CustomStudio({
     const config = {
       colorId: color.id,
       sizeId: size.id,
+      gsmId: gsm?.id ?? null,
       printOptionId: option.id,
       sides,
       frontDesignId: needFront ? frontDesign?.id ?? null : null,
@@ -125,6 +132,7 @@ export function CustomStudio({
       colorName: color.name,
       colorHex: color.hex,
       sizeLabel: size.label,
+      gsmLabel: gsm ? gsmLabel(gsm.gsm) : null,
       printOption: {
         name: option.name,
         width_cm: option.width_cm,
@@ -158,6 +166,10 @@ export function CustomStudio({
   const frontUrl = needFront ? frontDesign?.image_url : null;
   const backUrl = needBack ? backDesign?.image_url : null;
   const guideLabel = option ? `${option.name} · ${formatCm(option)}` : undefined;
+
+  // Steps are numbered as they render, since the GSM step only shows when GSM options exist.
+  let stepCount = 0;
+  const nextStep = () => String(++stepCount).padStart(2, "0");
 
   const mockupFor = (side: TeeView, extra?: { className?: string; imageWidth?: number; guide?: boolean }) => {
     const printsThisSide = side === "front" ? needFront : needBack;
@@ -244,6 +256,7 @@ export function CustomStudio({
                 </span>
               )}
               {size && <span className="rounded-full bg-background px-3 py-1.5">Size {size.label}</span>}
+              {gsm && <span className="rounded-full bg-background px-3 py-1.5">{gsmLabel(gsm.gsm)}</span>}
               {option && (
                 <span className="rounded-full bg-background px-3 py-1.5">
                   {option.name} · {SIDE_LABELS[sides]}
@@ -269,7 +282,7 @@ export function CustomStudio({
 
         {/* STEPS */}
         <div className="space-y-4">
-          <Step index="01" title="Tee colour" aside={color?.name}>
+          <Step index={nextStep()} title="Tee colour" aside={color?.name}>
             <div className="flex flex-wrap gap-3">
               {colors.map((c) => (
                 <button
@@ -291,7 +304,36 @@ export function CustomStudio({
             </div>
           </Step>
 
-          <Step index="02" title="Print sides">
+          {gsmOptions.length > 0 && (
+            <Step index={nextStep()} title="Fabric weight" aside={gsm ? gsmLabel(gsm.gsm) : undefined}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {gsmOptions.map((g) => {
+                  const selected = g.id === gsm?.id;
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setGsmId(g.id)}
+                      className={cn(
+                        "rounded-2xl border p-4 text-left transition-colors",
+                        selected ? "border-foreground ring-1 ring-foreground" : "border-border hover:border-foreground"
+                      )}
+                    >
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="font-semibold">{gsmLabel(g.gsm)}</span>
+                        <span className="text-sm font-bold">{g.price > 0 ? `+${formatPrice(g.price)}` : "Included"}</span>
+                      </span>
+                      <WeightMeter gsm={g.gsm} />
+                      {g.description && <span className="mt-1.5 block text-xs text-muted-foreground">{g.description}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </Step>
+          )}
+
+          <Step index={nextStep()} title="Print sides">
             <div className="grid grid-cols-3 gap-2">
               {SIDES.map((s) => {
                 const available = sideAvailable(s);
@@ -315,7 +357,7 @@ export function CustomStudio({
             </div>
           </Step>
 
-          <Step index="03" title="Print size" aside={option ? formatCm(option) : undefined}>
+          <Step index={nextStep()} title="Print size" aside={option ? formatCm(option) : undefined}>
             <div className="grid gap-2 sm:grid-cols-2">
               {printOptions.map((o) => {
                 const price = printPriceFor(o, sides);
@@ -347,7 +389,7 @@ export function CustomStudio({
           </Step>
 
           <Step
-            index="04"
+            index={nextStep()}
             title="Your design"
             innerRef={designStepRef}
             invalid={attempted && ((needFront && !frontDesign) || (needBack && !backDesign))}
@@ -393,7 +435,7 @@ export function CustomStudio({
             </div>
           </Step>
 
-          <Step index="05" title="Size & quantity" aside={size ? `Size ${size.label}` : undefined}>
+          <Step index={nextStep()} title="Size & quantity" aside={size ? `Size ${size.label}` : undefined}>
             <div className="flex flex-wrap gap-2">
               {sizes.map((s) => (
                 <button
@@ -452,6 +494,12 @@ export function CustomStudio({
           <section className="rounded-3xl bg-foreground p-5 text-background sm:p-6">
             <div className="space-y-2 text-sm">
               <SummaryRow label={`Tee · size ${size?.label ?? "—"}`} value={size ? formatPrice(size.price) : "—"} />
+              {gsmOptions.length > 0 && (
+                <SummaryRow
+                  label={`Fabric · ${gsm ? gsmLabel(gsm.gsm) : "—"}`}
+                  value={!gsm ? "—" : gsm.price > 0 ? formatPrice(gsm.price) : "Included"}
+                />
+              )}
               <SummaryRow
                 label={option ? `${option.name} · ${SIDE_LABELS[sides]}` : "Print"}
                 value={printPrice === null ? "—" : formatPrice(printPrice)}
@@ -523,7 +571,8 @@ export function CustomStudio({
               {total === null ? "—" : formatPrice(total)}
             </p>
             <p className="truncate text-xs text-muted-foreground">
-              {quantity} × {option?.name ?? "Custom tee"} · {SIDE_LABELS[sides]}
+              {quantity} × {gsm ? `${gsmLabel(gsm.gsm)} · ` : ""}
+              {option?.name ?? "Custom tee"} · {SIDE_LABELS[sides]}
             </p>
           </div>
           <Button size="md" className="px-5" onClick={() => handleAdd(false)}>
@@ -635,6 +684,20 @@ function DesignSlot({
         </div>
       </div>
     </div>
+  );
+}
+
+/** A five-bar "how heavy is it" hint: 180 GSM fills two bars, 240 fills four. */
+function WeightMeter({ gsm }: { gsm: number }) {
+  const filled = Math.min(5, Math.max(1, Math.round((gsm - 100) / 40)));
+  const word = gsm < 160 ? "Light" : gsm < 200 ? "Regular" : gsm < 260 ? "Heavy" : "Extra heavy";
+  return (
+    <span className="mt-2 flex items-center gap-1" aria-hidden="true">
+      {Array.from({ length: 5 }, (_, i) => (
+        <span key={i} className={cn("h-1.5 w-5 rounded-full", i < filled ? "bg-foreground" : "bg-border")} />
+      ))}
+      <span className="ml-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{word}</span>
+    </span>
   );
 }
 

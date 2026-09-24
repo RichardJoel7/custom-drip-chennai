@@ -32,7 +32,9 @@ export function CartItemRow({ item, unitPrice }: { item: CartItem; unitPrice: nu
                 {item.name}
               </Link>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {item.colorName} · {item.sizeLabel} · {item.printOption.name} · {SIDE_LABELS[item.config.sides]}
+                {[item.colorName, item.sizeLabel, item.gsmLabel, item.printOption.name, SIDE_LABELS[item.config.sides]]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {[item.frontDesign && `Front: ${item.frontDesign.name}`, item.backDesign && `Back: ${item.backDesign.name}`]

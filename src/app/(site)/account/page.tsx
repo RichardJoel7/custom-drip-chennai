@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { SavedDetailsCard } from "@/components/account/saved-details-card";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils/format";
+import { getSavedCheckoutDetails } from "@/services/saved-details";
 
 export const metadata: Metadata = { title: "My Profile", robots: { index: false } };
 
@@ -13,6 +15,8 @@ export default async function AccountPage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login?next=/account");
+
+  const savedDetails = await getSavedCheckoutDetails(user.id);
 
   return (
     <div className="mx-auto max-w-lg px-4 py-10 sm:py-16">
@@ -28,6 +32,8 @@ export default async function AccountPage() {
           <p className="mt-0.5">{formatDate(user.created_at)}</p>
         </div>
       </div>
+
+      {savedDetails && <SavedDetailsCard details={savedDetails} />}
 
       <div className="mt-6 space-y-3">
         <Link

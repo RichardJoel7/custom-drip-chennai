@@ -156,6 +156,16 @@ export interface CustomTeeSize {
   is_active: boolean;
 }
 
+/** A fabric weight; `price` is added to the tee price. */
+export interface CustomTeeGsm {
+  id: string;
+  gsm: number;
+  description: string | null;
+  price: number;
+  sort_order: number;
+  is_active: boolean;
+}
+
 export interface CustomTeeColor {
   id: string;
   name: string;
@@ -182,6 +192,8 @@ export interface CustomPrintOption {
 export interface CustomCatalog {
   sizes: CustomTeeSize[];
   colors: CustomTeeColor[];
+  /** Empty when the admin offers no GSM choice (or 0010 hasn't been run yet). */
+  gsmOptions: CustomTeeGsm[];
   printOptions: CustomPrintOption[];
 }
 
@@ -202,6 +214,8 @@ export type StudioDesign = Pick<Design, "id" | "name" | "category" | "image_url"
 export interface CustomTeeConfig {
   colorId: string;
   sizeId: string;
+  /** Missing on carts saved before GSM options existed. */
+  gsmId?: string | null;
   printOptionId: string;
   sides: PrintSides;
   frontDesignId: string | null;
@@ -213,6 +227,8 @@ export interface CustomItemDetails {
   color_hex: string;
   sides: PrintSides;
   tee_price: number;
+  /** Absent on orders placed before GSM options existed. */
+  gsm?: { id: string; gsm: number; price: number } | null;
   print_price: number;
   print_option: {
     id: string;
@@ -251,6 +267,8 @@ export interface CustomCartItem {
   colorName: string;
   colorHex: string;
   sizeLabel: string;
+  /** e.g. "240 GSM"; missing on carts saved before GSM options existed. */
+  gsmLabel?: string | null;
   printOption: Pick<CustomPrintOption, "name" | "width_cm" | "height_cm" | "front_placement">;
   frontDesign: StudioDesign | null;
   backDesign: StudioDesign | null;
