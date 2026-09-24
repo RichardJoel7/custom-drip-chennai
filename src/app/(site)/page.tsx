@@ -10,11 +10,14 @@ import heroMen from "../../../public/images/hero-2.png";
 import heroWomen from "../../../public/images/hero-3.png";
 import heroMenMobile from "../../../public/images/mobile-hero-men.jpeg";
 import heroWomenMobile from "../../../public/images/mobile-hero-women.jpeg";
+import heroCustomize from "../../../public/images/hero-4.jpg";
+import heroCustomizeMobile from "../../../public/images/mobile-hero-customize.jpg";
 
 const HERO_SLIDES: HeroSlide[] = [
   { desktopSrc: heroMain, href: "/shop", label: "Shop", showHeading: true },
   { desktopSrc: heroMen, mobileSrc: heroMenMobile, href: "/shop?gender=men", label: "Shop Men's" },
   { desktopSrc: heroWomen, mobileSrc: heroWomenMobile, href: "/shop?gender=women", label: "Shop Women's" },
+  { desktopSrc: heroCustomize, mobileSrc: heroCustomizeMobile, href: "/customize", label: "Customize Yourself" },
 ];
 
 export default async function HomePage() {
