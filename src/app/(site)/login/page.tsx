@@ -29,18 +29,35 @@ function GoogleIcon() {
   );
 }
 
-// Supabase lets a new code go out once a minute.
+// Supabase lets a new code go out to the same email once a minute.
 const RESEND_SECONDS = 60;
+const MIN_PASSWORD = 6;
+
+type Mode = "signin" | "signup" | "forgot" | "verify" | "password";
+/** Why a code was emailed: creating an account, or setting a new password. */
+type Purpose = "signup" | "reset";
+
+/** Turns Supabase's email errors into something a customer can act on. */
+function sendErrorMessage(message: string) {
+  const wait = message.match(/after (\d+) seconds?/i);
+  if (wait) return `Please wait ${wait[1]} seconds before asking for another code.`;
+  if (/rate limit/i.test(message)) return "Too many emails sent just now. Please try again in a few minutes.";
+  if (/signups? not allowed/i.test(message)) return "There's no account with that email yet — create one instead.";
+  if (/invalid.*email|email.*invalid/i.test(message)) return "Enter a valid email address.";
+  return "We couldn't send the email right now. Please try again in a minute.";
+}
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/";
 
-  // "verify": an email sign-up is waiting for the code we emailed.
-  const [mode, setMode] = useState<"signin" | "signup" | "verify">("signin");
+  // signin / signup (email only) / forgot → "verify" (the emailed code) → "password" (set it)
+  const [mode, setMode] = useState<Mode>("signin");
+  const [purpose, setPurpose] = useState<Purpose>("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [code, setCode] = useState("");
   const [resendAt, setResendAt] = useState(0);
   const [now, setNow] = useState(() => Date.now());
@@ -48,7 +65,7 @@ function LoginForm() {
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Ticks the "Resend code in 42s" countdown while it's running.
+  // Ticks the "resend in 42s" countdown while it's running.
   useEffect(() => {
     if (resendAt <= Date.now()) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -56,18 +73,35 @@ function LoginForm() {
   }, [resendAt]);
   const resendIn = Math.max(0, Math.ceil((resendAt - now) / 1000));
 
-  function askForCode(message: string) {
-    setMode("verify");
-    setCode("");
-    setInfo(message);
-    setNow(Date.now());
-    setResendAt(Date.now() + RESEND_SECONDS * 1000);
-  }
-
-  function goTo(nextMode: "signin" | "signup") {
+  function goTo(nextMode: Mode) {
     setMode(nextMode);
     setError(null);
     setInfo(null);
+    setPassword("");
+    setConfirmPassword("");
+  }
+
+  /** Emails a 6-digit code. New emails get an account created (still without a password). */
+  async function sendCode(forPurpose: Purpose) {
+    setError(null);
+    setLoading(true);
+    const supabase = createClient();
+    const { error: sendError } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { shouldCreateUser: forPurpose === "signup" },
+    });
+    setLoading(false);
+    if (sendError) {
+      console.error("sending the code failed:", sendError.message);
+      setError(sendErrorMessage(sendError.message));
+      return;
+    }
+    setPurpose(forPurpose);
+    setMode("verify");
+    setCode("");
+    setInfo(`We've sent a 6-digit code to ${email.trim()}.`);
+    setNow(Date.now());
+    setResendAt(Date.now() + RESEND_SECONDS * 1000);
   }
 
   async function handleVerify(e: React.FormEvent) {
@@ -75,30 +109,40 @@ function LoginForm() {
     setError(null);
     setLoading(true);
     const supabase = createClient();
-    const { error: verifyError } = await supabase.auth.verifyOtp({ email, token: code.trim(), type: "signup" });
+    // "email" covers both a new account's code and an existing account's code.
+    const { error: verifyError } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "email" });
+    setLoading(false);
     if (verifyError) {
       // Supabase gives the same error for a wrong code and an expired one.
       setError("That code is wrong or has expired. Check the latest email, or tap Resend code for a new one.");
+      return;
+    }
+    // The code signed them in; now they choose a password for next time.
+    setMode("password");
+    setInfo(null);
+  }
+
+  async function handleSetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (password.length < MIN_PASSWORD) return setError(`Use at least ${MIN_PASSWORD} characters.`);
+    if (password !== confirmPassword) return setError("The two passwords don't match.");
+    setLoading(true);
+    const supabase = createClient();
+    const { error: updateError } = await supabase.auth.updateUser({ password });
+    if (updateError) {
       setLoading(false);
+      setError(
+        /different from the old/i.test(updateError.message)
+          ? "That's your current password — choose a new one, or just continue."
+          : /weak|short|characters/i.test(updateError.message)
+            ? "That password is too weak. Try a longer one."
+            : "Couldn't save your password. Please try again."
+      );
       return;
     }
     router.push(next);
     router.refresh();
-  }
-
-  async function handleResend() {
-    setError(null);
-    const supabase = createClient();
-    const { error: resendError } = await supabase.auth.resend({
-      type: "signup",
-      email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
-    });
-    if (resendError) {
-      setError("Couldn't send a new code just now. Please wait a minute and try again.");
-      return;
-    }
-    askForCode(`We've sent a new code to ${email}.`);
   }
 
   async function handleGoogle() {
@@ -111,167 +155,182 @@ function LoginForm() {
     if (oauthError) setError("Couldn't start Google sign-in. Please try again.");
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setInfo(null);
     setLoading(true);
-
     const supabase = createClient();
-
-    if (mode === "signin") {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError?.code === "email_not_confirmed") {
-        // Signed up but never entered the code: send a fresh one and ask for it.
-        setLoading(false);
-        await handleResend();
-        return;
-      }
-      if (signInError) {
-        setError("Incorrect email or password.");
-        setLoading(false);
-        return;
-      }
-      router.push(next);
-      router.refresh();
-      return;
-    }
-
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
-    });
-
-    if (signUpError) {
-      if (signUpError.message.includes("already registered")) {
-        setMode("signin");
-        setError("An account with that email already exists. Sign in instead.");
-      } else {
-        setError("Couldn't create your account. Please try again.");
-      }
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (signInError) {
       setLoading(false);
+      setError("Incorrect email or password. New here, or never set a password? Use Forgot password.");
       return;
     }
-
-    // Supabase answers a sign-up for an already-confirmed email with a user that has no
-    // identities (so it doesn't reveal who has an account) — send them to sign in.
-    if (data.user && data.user.identities?.length === 0) {
-      setMode("signin");
-      setError("An account with that email already exists. Sign in instead.");
-      setLoading(false);
-      return;
-    }
-
-    if (!data.session) {
-      askForCode(`We've sent a 6-digit code to ${email}.`);
-      setLoading(false);
-      return;
-    }
-
     router.push(next);
     router.refresh();
   }
 
+  function handleEmailStep(e: React.FormEvent) {
+    e.preventDefault();
+    sendCode(mode === "forgot" ? "reset" : "signup");
+  }
+
+  const emailField = (
+    <div>
+      <Label htmlFor="email">Email</Label>
+      <Input
+        id="email"
+        type="email"
+        autoComplete="username"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+    </div>
+  );
+
+  // --- step 2: the emailed code ---
   if (mode === "verify") {
     return (
-      <div className="mx-auto flex min-h-[70vh] max-w-sm items-center px-4 py-10">
-        <div className="w-full">
-          <h1 className="font-display text-3xl tracking-wide">CHECK YOUR EMAIL</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {info ?? `We've sent a 6-digit code to ${email}.`} Enter it below to finish creating your account.
-          </p>
+      <Shell title="CHECK YOUR EMAIL" subtitle={`${info ?? `We've sent a 6-digit code to ${email}.`} Enter it below.`}>
+        <form onSubmit={handleVerify} className="space-y-4">
+          <div>
+            <Label htmlFor="code">Code</Label>
+            <Input
+              id="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              required
+              maxLength={10}
+              placeholder="123456"
+              className="text-center text-2xl font-semibold tracking-[0.4em]"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            />
+          </div>
 
-          <form onSubmit={handleVerify} className="mt-6 space-y-4">
-            <div>
-              <Label htmlFor="code">Code</Label>
-              <Input
-                id="code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                autoFocus
-                required
-                maxLength={10}
-                placeholder="123456"
-                className="text-center text-2xl font-semibold tracking-[0.4em]"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-              />
-            </div>
+          {error && <p className="text-sm text-danger">{error}</p>}
 
-            {error && <p className="text-sm text-danger">{error}</p>}
+          <Button type="submit" size="lg" className="w-full" disabled={loading || code.length < 6}>
+            {loading ? "Checking…" : "Continue"}
+          </Button>
+        </form>
 
-            <Button type="submit" size="lg" className="w-full" disabled={loading || code.length < 6}>
-              {loading ? "Checking…" : "Verify & Create Account"}
-            </Button>
-          </form>
-
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            No email? Check spam, or{" "}
-            {resendIn > 0 ? (
-              <span>resend in {resendIn}s</span>
-            ) : (
-              <button type="button" onClick={handleResend} className="font-semibold text-foreground underline underline-offset-4">
-                Resend code
-              </button>
-            )}
-          </p>
-          <button
-            type="button"
-            className="mt-3 w-full text-center text-sm font-semibold underline underline-offset-4"
-            onClick={() => goTo("signup")}
-          >
-            Use a different email
-          </button>
-        </div>
-      </div>
+        <p className="mt-4 text-center text-sm text-muted-foreground">
+          No email? Check spam, or{" "}
+          {resendIn > 0 ? (
+            <span>resend in {resendIn}s</span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => sendCode(purpose)}
+              disabled={loading}
+              className="font-semibold text-foreground underline underline-offset-4"
+            >
+              Resend code
+            </button>
+          )}
+        </p>
+        <button
+          type="button"
+          className="mt-3 w-full text-center text-sm font-semibold underline underline-offset-4"
+          onClick={() => goTo(purpose === "reset" ? "forgot" : "signup")}
+        >
+          Use a different email
+        </button>
+      </Shell>
     );
   }
 
-  return (
-    <div className="mx-auto flex min-h-[70vh] max-w-sm items-center px-4 py-10">
-      <div className="w-full">
-        <h1 className="font-display text-3xl tracking-wide">{mode === "signin" ? "SIGN IN" : "CREATE ACCOUNT"}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {mode === "signin" ? "Sign in to check out and track your orders." : "Sign up to check out and track your orders."}
-        </p>
-
-        <Button
-          type="button"
-          variant="outline"
-          size="lg"
-          className="mt-6 w-full gap-2.5"
-          onClick={handleGoogle}
-        >
-          <GoogleIcon />
-          Continue with Google
-        </Button>
-
-        <div className="my-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          <span className="h-px flex-1 bg-border" />
-          or
-          <span className="h-px flex-1 bg-border" />
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="username"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
+  // --- step 3: choose a password ---
+  if (mode === "password") {
+    return (
+      <Shell
+        title={purpose === "reset" ? "NEW PASSWORD" : "SET YOUR PASSWORD"}
+        subtitle={`${email} is confirmed. Choose a password to sign in with next time.`}
+      >
+        <form onSubmit={handleSetPassword} className="space-y-4">
           <div>
             <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               type="password"
-              autoComplete={mode === "signin" ? "current-password" : "new-password"}
-              minLength={6}
+              autoComplete="new-password"
+              autoFocus
+              required
+              minLength={MIN_PASSWORD}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">At least {MIN_PASSWORD} characters.</p>
+          </div>
+          <div>
+            <Label htmlFor="confirmPassword">Confirm password</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </div>
+
+          {error && <p className="text-sm text-danger">{error}</p>}
+
+          <Button type="submit" size="lg" className="w-full" disabled={loading}>
+            {loading ? "Saving…" : purpose === "reset" ? "Save Password" : "Create Account"}
+          </Button>
+        </form>
+      </Shell>
+    );
+  }
+
+  // --- step 1: sign in, or an email to start sign-up / reset ---
+  const titles: Record<"signin" | "signup" | "forgot", [string, string]> = {
+    signin: ["SIGN IN", "Sign in to check out and track your orders."],
+    signup: ["CREATE ACCOUNT", "Enter your email — we'll send you a code to confirm it, then you'll set a password."],
+    forgot: ["FORGOT PASSWORD", "Enter your email and we'll send you a code to set a new password."],
+  };
+  const [title, subtitle] = titles[mode];
+
+  return (
+    <Shell title={title} subtitle={subtitle}>
+      {mode !== "forgot" && (
+        <>
+          <Button type="button" variant="outline" size="lg" className="w-full gap-2.5" onClick={handleGoogle}>
+            <GoogleIcon />
+            Continue with Google
+          </Button>
+
+          <div className="my-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            or
+            <span className="h-px flex-1 bg-border" />
+          </div>
+        </>
+      )}
+
+      {mode === "signin" ? (
+        <form onSubmit={handleSignIn} className="space-y-4">
+          {emailField}
+          <div>
+            <div className="flex items-baseline justify-between">
+              <Label htmlFor="password">Password</Label>
+              <button
+                type="button"
+                onClick={() => goTo("forgot")}
+                className="mb-1.5 text-xs font-semibold underline underline-offset-4"
+              >
+                Forgot password?
+              </button>
+            </div>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="current-password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -282,17 +341,37 @@ function LoginForm() {
           {info && <p className="text-sm text-success">{info}</p>}
 
           <Button type="submit" size="lg" className="w-full" disabled={loading}>
-            {loading ? "Please wait…" : mode === "signin" ? "Sign In" : "Create Account"}
+            {loading ? "Please wait…" : "Sign In"}
           </Button>
         </form>
+      ) : (
+        <form onSubmit={handleEmailStep} className="space-y-4">
+          {emailField}
+          {error && <p className="text-sm text-danger">{error}</p>}
+          <Button type="submit" size="lg" className="w-full" disabled={loading}>
+            {loading ? "Sending code…" : "Send Code"}
+          </Button>
+        </form>
+      )}
 
-        <button
-          type="button"
-          className="mt-5 w-full text-center text-sm font-semibold underline underline-offset-4"
-          onClick={() => goTo(mode === "signin" ? "signup" : "signin")}
-        >
-          {mode === "signin" ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
-        </button>
+      <button
+        type="button"
+        className="mt-5 w-full text-center text-sm font-semibold underline underline-offset-4"
+        onClick={() => goTo(mode === "signin" ? "signup" : "signin")}
+      >
+        {mode === "signin" ? "Don't have an account? Sign up" : "Back to sign in"}
+      </button>
+    </Shell>
+  );
+}
+
+function Shell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+  return (
+    <div className="mx-auto flex min-h-[70vh] max-w-sm items-center px-4 py-10">
+      <div className="w-full">
+        <h1 className="font-display text-3xl tracking-wide">{title}</h1>
+        <p className="mb-6 mt-1 text-sm text-muted-foreground">{subtitle}</p>
+        {children}
       </div>
     </div>
   );

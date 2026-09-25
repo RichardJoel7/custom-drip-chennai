@@ -247,6 +247,10 @@ otp_expiry = 3600
 subject = "Your Custom Drip Chennai code"
 content_path = "./supabase/templates/confirm-signup.html"
 
+[auth.email.template.magic_link]
+subject = "Your Custom Drip Chennai code"
+content_path = "./supabase/templates/magic-link.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"
