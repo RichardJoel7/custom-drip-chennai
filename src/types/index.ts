@@ -145,11 +145,73 @@ export interface Settings {
 
 // --- Custom Studio -----------------------------------------------------------------
 
-export type PrintSides = "front" | "back" | "both";
+/** One side of a garment. */
+export type PrintSide = "front" | "back";
+/** Which sides an order line prints on (kept on every order for labels). */
+export type PrintSides = PrintSide | "both";
 export type FrontPlacement = "center" | "left_chest";
+export type GarmentGender = "men" | "women" | "unisex";
+
+/** A box on a garment photo, as 0–1 fractions of the photo's width (x, w) and height (y, h). */
+export interface PrintBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** A point on a garment photo, as 0–1 fractions. */
+export interface PhotoPoint {
+  x: number;
+  y: number;
+}
+
+/** A garment type in the studio, shown from its front and back photos. */
+export interface CustomGarment {
+  id: string;
+  name: string;
+  slug: string;
+  gender: GarmentGender;
+  description: string | null;
+  front_image_url: string | null;
+  front_storage_path: string | null;
+  /** Photo width ÷ height. */
+  front_aspect: number | null;
+  back_image_url: string | null;
+  back_storage_path: string | null;
+  back_aspect: number | null;
+  front_area: PrintBox | null;
+  back_area: PrintBox | null;
+  /** Real-life width of the print-area boxes, which sets the true scale of prints. */
+  area_width_cm: number | null;
+  logo_spot: PhotoPoint | null;
+  sort_order: number;
+  is_active: boolean;
+}
+
+export interface MockupSide {
+  imageUrl: string;
+  aspect: number;
+  area: PrintBox;
+}
+
+/** Everything needed to draw a garment mockup from its photos. */
+export interface MockupSpec {
+  front: MockupSide;
+  back: MockupSide;
+  areaWidthCm: number;
+  logoSpot: PhotoPoint | null;
+}
+
+/** Real photos of one colour, shown as-is instead of auto-colouring the blank photo. */
+export interface ColorPhotos {
+  front: string | null;
+  back: string | null;
+}
 
 export interface CustomTeeSize {
   id: string;
+  garment_id: string;
   label: string;
   price: number;
   sort_order: number;
@@ -159,6 +221,7 @@ export interface CustomTeeSize {
 /** A fabric weight; `price` is added to the tee price. */
 export interface CustomTeeGsm {
   id: string;
+  garment_id: string;
   gsm: number;
   description: string | null;
   price: number;
@@ -168,13 +231,21 @@ export interface CustomTeeGsm {
 
 export interface CustomTeeColor {
   id: string;
+  garment_id: string;
   name: string;
   hex: string;
+  front_image_url: string | null;
+  front_storage_path: string | null;
+  back_image_url: string | null;
+  back_storage_path: string | null;
   sort_order: number;
   is_active: boolean;
 }
 
-/** A null price means that side combination isn't offered for this print size. */
+/**
+ * A print size. price_front / price_back are per side (null = not offered on that side);
+ * price_both, when set, is charged instead of both when the size is on the front and back.
+ */
 export interface CustomPrintOption {
   id: string;
   name: string;
@@ -189,12 +260,15 @@ export interface CustomPrintOption {
   is_active: boolean;
 }
 
+/** Sizes, colours and GSM carry their garment_id; print options are shared across garments. */
 export interface CustomCatalog {
+  garments: CustomGarment[];
   sizes: CustomTeeSize[];
   colors: CustomTeeColor[];
-  /** Empty when the admin offers no GSM choice (or 0010 hasn't been run yet). */
   gsmOptions: CustomTeeGsm[];
   printOptions: CustomPrintOption[];
+  /** Which print options each garment allows, by garment id. */
+  garmentPrintOptionIds: Record<string, string[]>;
 }
 
 export interface Design {
@@ -208,18 +282,68 @@ export interface Design {
   created_at: string;
 }
 
-export type StudioDesign = Pick<Design, "id" | "name" | "category" | "image_url">;
+export type DesignSource = "hub" | "upload";
+
+/** Artwork the customer can print: a Design Hub design, or a file they uploaded. */
+export type StudioDesign = Pick<Design, "id" | "name" | "category" | "image_url"> & {
+  /** "upload" = the customer's own file (customer_designs); absent means a hub design. */
+  source?: DesignSource;
+  /** Pixel size of an upload, to warn when it's too small to print sharply. */
+  width?: number | null;
+  height?: number | null;
+};
+
+/** A design a customer uploaded (0012_print_placements.sql). */
+export interface CustomerDesign {
+  id: string;
+  user_id: string;
+  name: string;
+  image_url: string;
+  storage_path: string;
+  width: number | null;
+  height: number | null;
+  created_at: string;
+}
+
+/**
+ * Where the customer moved or resized a print: its box scaled to 20–100% of the print size,
+ * and its centre moved dx (right) / dy (down) cm from where that print size normally sits.
+ */
+export interface PrintTransform {
+  scale: number;
+  dx: number;
+  dy: number;
+}
+
+export type PrintOptionSummary = Pick<CustomPrintOption, "id" | "name" | "width_cm" | "height_cm" | "front_placement">;
+
+/** One print the customer placed: which side, which print size, which artwork. */
+export interface PlacementConfig {
+  side: PrintSide;
+  printOptionId: string;
+  designId: string;
+  designSource: DesignSource;
+  transform: PrintTransform | null;
+}
 
 /** What the customer picked — the only thing the server trusts; it re-prices from the DB. */
 export interface CustomTeeConfig {
+  /** Missing on carts saved before garments existed — those lines must be designed again. */
+  garmentId?: string;
   colorId: string;
   sizeId: string;
   /** Missing on carts saved before GSM options existed. */
   gsmId?: string | null;
-  printOptionId: string;
-  sides: PrintSides;
-  frontDesignId: string | null;
-  backDesignId: string | null;
+  /** Missing on carts saved before several prints per garment — designed again. */
+  placements?: PlacementConfig[];
+}
+
+/** One print on an order line, as ordered (see place_order() in 0012_print_placements.sql). */
+export interface PlacementSnapshot {
+  side: PrintSide;
+  print_option: PrintOptionSummary;
+  design: { id: string; name: string; image_url: string; source?: DesignSource; width?: number | null; height?: number | null } | null;
+  transform: PrintTransform | null;
 }
 
 /** Snapshot place_order() stores on a custom order line (built server-side from DB rows). */
@@ -229,16 +353,32 @@ export interface CustomItemDetails {
   tee_price: number;
   /** Absent on orders placed before GSM options existed. */
   gsm?: { id: string; gsm: number; price: number } | null;
+  /** All the prints together, after any front & back rate. */
   print_price: number;
-  print_option: {
-    id: string;
-    name: string;
-    width_cm: number;
-    height_cm: number;
-    front_placement: FrontPlacement;
-  };
-  front_design: { id: string; name: string; image_url: string } | null;
-  back_design: { id: string; name: string; image_url: string } | null;
+  /** Absent on orders placed before garments existed. */
+  garment?: GarmentSnapshot | null;
+  /** Present from 0012 on; older orders have one print size and a front/back design instead. */
+  placements?: PlacementSnapshot[];
+  print_option?: PrintOptionSummary;
+  front_design?: { id: string; name: string; image_url: string } | null;
+  back_design?: { id: string; name: string; image_url: string } | null;
+}
+
+/** The garment and mockup exactly as ordered (see place_order() in 0011_garments.sql). */
+export interface GarmentSnapshot {
+  id: string;
+  name: string;
+  gender: GarmentGender;
+  front_image_url: string | null;
+  front_aspect: number | null;
+  back_image_url: string | null;
+  back_aspect: number | null;
+  front_area: PrintBox | null;
+  back_area: PrintBox | null;
+  area_width_cm: number | null;
+  logo_spot: PhotoPoint | null;
+  color_front_image_url: string | null;
+  color_back_image_url: string | null;
 }
 
 // --- Cart (persisted to localStorage, never trusted for pricing) -----------------------
@@ -264,17 +404,25 @@ export interface CustomCartItem {
   key: string;
   config: CustomTeeConfig;
   name: string;
+  /** How to draw the thumbnail; missing on carts saved before garments existed. */
+  mockup?: { spec: MockupSpec | null; colorPhotos: ColorPhotos | null };
   colorName: string;
   colorHex: string;
   sizeLabel: string;
   /** e.g. "240 GSM"; missing on carts saved before GSM options existed. */
   gsmLabel?: string | null;
-  printOption: Pick<CustomPrintOption, "name" | "width_cm" | "height_cm" | "front_placement">;
-  frontDesign: StudioDesign | null;
-  backDesign: StudioDesign | null;
+  /** What's printed where, for display; missing on carts saved before several prints. */
+  prints?: CartPrint[];
   price: number;
   quantity: number;
   maxStock: number;
+}
+
+export interface CartPrint {
+  side: PrintSide;
+  printOption: PrintOptionSummary;
+  design: StudioDesign;
+  transform: PrintTransform | null;
 }
 
 export type CartItem = ProductCartItem | CustomCartItem;

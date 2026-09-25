@@ -4,8 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { useCart } from "@/components/cart/cart-context";
-import { TeeMockup } from "@/components/custom/tee-mockup";
-import { SIDE_LABELS, cartLineKey, sidesNeedFront } from "@/lib/custom/pricing";
+import { GarmentMockup } from "@/components/custom/garment-mockup";
+import { SIDE_NAMES, cartLineKey } from "@/lib/custom/pricing";
 import { formatPrice } from "@/lib/utils/format";
 import type { CartItem, CustomCartItem, ProductCartItem } from "@/types";
 
@@ -32,15 +32,17 @@ export function CartItemRow({ item, unitPrice }: { item: CartItem; unitPrice: nu
                 {item.name}
               </Link>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {[item.colorName, item.sizeLabel, item.gsmLabel, item.printOption.name, SIDE_LABELS[item.config.sides]]
-                  .filter(Boolean)
-                  .join(" · ")}
+                {[item.colorName, item.sizeLabel, item.gsmLabel].filter(Boolean).join(" · ")}
               </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {[item.frontDesign && `Front: ${item.frontDesign.name}`, item.backDesign && `Back: ${item.backDesign.name}`]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
+              {item.prints && (
+                <ul className="mt-0.5 text-xs text-muted-foreground">
+                  {item.prints.map((p) => (
+                    <li key={`${p.side}:${p.printOption.id}`}>
+                      {SIDE_NAMES[p.side]} · {p.printOption.name}: {p.design.name}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </>
           ) : (
             <>
@@ -120,19 +122,27 @@ function ProductThumb({ item }: { item: ProductCartItem }) {
 }
 
 function CustomThumb({ item }: { item: CustomCartItem }) {
-  const view = sidesNeedFront(item.config.sides) ? "front" : "back";
-  const design = view === "front" ? item.frontDesign : item.backDesign;
+  const prints = item.prints ?? [];
+  const view = prints.some((p) => p.side === "front") || prints.length === 0 ? "front" : "back";
 
   return (
     <Link
       href="/customize"
       className="flex h-24 w-20 flex-none items-center justify-center overflow-hidden rounded-lg bg-muted"
     >
-      <TeeMockup
+      <GarmentMockup
+        spec={item.mockup?.spec}
+        colorPhotos={item.mockup?.colorPhotos}
         colorHex={item.colorHex}
         view={view}
-        printArea={item.printOption}
-        designUrl={design?.image_url}
+        prints={prints
+          .filter((p) => p.side === view)
+          .map((p) => ({
+            key: p.printOption.id,
+            printArea: p.printOption,
+            transform: p.transform,
+            designUrl: p.design.image_url,
+          }))}
         imageWidth={256}
         className="w-full"
         title={`${item.name} preview`}

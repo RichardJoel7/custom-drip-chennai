@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { LinkButton } from "@/components/ui/button";
-import { TeeMockup } from "@/components/custom/tee-mockup";
+import { GarmentMockup } from "@/components/custom/garment-mockup";
+import { mockupFromSnapshot } from "@/lib/custom/mockup";
 import { OrderTimeline } from "@/components/track/order-timeline";
-import { customDetailsOf, orderItemVariantLabel } from "@/lib/custom/order-item";
+import { customDetailsOf, orderItemVariantLabel, placementsOf } from "@/lib/custom/order-item";
 import { formatDate, formatPrice } from "@/lib/utils/format";
 import { PAYMENT_STATUS_LABELS } from "@/types";
 import { getOrderByTrackingToken } from "@/services/orders";
@@ -40,17 +41,25 @@ export default async function TrackOrderPage({
         <div className="mt-4 space-y-2 border-t border-border pt-4">
           {order.order_items.map((item) => {
             const details = customDetailsOf(item);
-            const design = details?.front_design ?? details?.back_design;
+            const placements = details ? placementsOf(details) : [];
+            const view = placements.some((p) => p.side === "front") || placements.length === 0 ? "front" : "back";
             return (
               <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
                 <span className="flex items-center gap-3">
                   {details && (
                     <span className="w-12 flex-none rounded-lg bg-muted p-0.5">
-                      <TeeMockup
+                      <GarmentMockup
+                        {...mockupFromSnapshot(details.garment)}
                         colorHex={details.color_hex}
-                        view={details.front_design ? "front" : "back"}
-                        printArea={details.print_option}
-                        designUrl={design?.image_url}
+                        view={view}
+                        prints={placements
+                          .filter((p) => p.side === view)
+                          .map((p, i) => ({
+                            key: `${p.print_option.id}-${i}`,
+                            printArea: p.print_option,
+                            transform: p.transform,
+                            designUrl: p.design?.image_url,
+                          }))}
                         imageWidth={256}
                         className="w-full"
                       />

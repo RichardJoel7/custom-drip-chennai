@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { CheckoutFlow } from "@/components/checkout/checkout-flow";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getCustomCatalog } from "@/services/custom-studio";
+import { getOrderableCatalog } from "@/services/custom-studio";
 import { getSavedCheckoutDetails } from "@/services/saved-details";
 import { getSettings } from "@/services/settings";
 
@@ -18,7 +18,7 @@ export default async function CheckoutPage() {
 
   const [settings, catalog, savedDetails] = await Promise.all([
     getSettings(),
-    getCustomCatalog(),
+    getOrderableCatalog(),
     getSavedCheckoutDetails(user.id),
   ]);
   return (

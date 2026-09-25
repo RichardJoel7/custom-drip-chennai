@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 
 const TABS = [
-  { href: "/admin/customizer", label: "Price List" },
+  { href: "/admin/customizer", label: "Garments", match: "/admin/customizer/garments" },
+  { href: "/admin/customizer/prints", label: "Print Prices" },
   { href: "/admin/customizer/designs", label: "Design Hub" },
 ];
 
@@ -20,7 +21,9 @@ export function CustomizerTabs() {
           href={tab.href}
           className={cn(
             "-mb-px border-b-2 px-4 py-3 text-sm font-semibold uppercase tracking-wide",
-            pathname === tab.href ? "border-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            pathname === tab.href || (tab.match && pathname.startsWith(tab.match))
+              ? "border-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
           {tab.label}

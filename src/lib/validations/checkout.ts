@@ -32,21 +32,37 @@ export const productItemPayloadSchema = z.object({
   quantity: z.number().int().positive().max(20),
 });
 
+export const placementPayloadSchema = z.object({
+  side: z.enum(["front", "back"]),
+  printOptionId: z.string().uuid(),
+  designId: z.string().uuid(),
+  designSource: z.enum(["hub", "upload"]),
+  transform: z
+    .object({
+      scale: z.number().min(0.2).max(1),
+      dx: z.number().min(-100).max(100),
+      dy: z.number().min(-100).max(100),
+    })
+    .nullable(),
+});
+
 export const customItemPayloadSchema = z
   .object({
     type: z.literal("custom"),
+    garmentId: z.string().uuid(),
     colorId: z.string().uuid(),
     sizeId: z.string().uuid(),
     // optional: carts saved before GSM options existed don't have it
     gsmId: z.string().uuid().nullable().optional(),
-    printOptionId: z.string().uuid(),
-    sides: z.enum(["front", "back", "both"]),
-    frontDesignId: z.string().uuid().nullable(),
-    backDesignId: z.string().uuid().nullable(),
+    placements: z
+      .array(placementPayloadSchema, { message: "One of your custom tees is from an older version. Please design it again." })
+      .min(1, "Choose at least one print")
+      .max(8, "A garment can have up to 8 prints"),
     quantity: z.number().int().positive().max(20),
   })
-  .refine((item) => item.sides === "back" || item.frontDesignId, { message: "Choose a front design" })
-  .refine((item) => item.sides === "front" || item.backDesignId, { message: "Choose a back design" });
+  .refine((item) => new Set(item.placements.map((p) => `${p.side}:${p.printOptionId}`)).size === item.placements.length, {
+    message: "Each print size can only be used once per side",
+  });
 
 export const placeOrderSchema = z.object({
   ...checkoutFormSchema.shape,
