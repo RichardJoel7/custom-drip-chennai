@@ -52,10 +52,13 @@ export function StateCityFields({
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div>
-        <Label htmlFor="state">State</Label>
+        <Label htmlFor="state" required>
+          State
+        </Label>
         <Select
           id="state"
           required
+          aria-invalid={!!errors.state}
           autoComplete="address-level1"
           value={stateOther ? OTHER : selectedState?.name ?? ""}
           onChange={(e) => chooseState(e.target.value)}
@@ -74,6 +77,7 @@ export function StateCityFields({
           <Input
             autoFocus
             aria-label="Your state"
+            required
             placeholder="Type your state"
             className="mt-2"
             value={state}
@@ -84,10 +88,14 @@ export function StateCityFields({
       </div>
 
       <div>
-        <Label htmlFor="city">City</Label>
+        <Label htmlFor="city" required>
+          City
+        </Label>
         {stateOther ? (
           <Input
             id="city"
+            required
+            aria-invalid={!!errors.city}
             autoComplete="address-level2"
             placeholder="Type your city"
             value={city}
@@ -98,6 +106,7 @@ export function StateCityFields({
             <Select
               id="city"
               required
+              aria-invalid={!!errors.city}
               autoComplete="address-level2"
               disabled={!selectedState}
               value={cityOther ? OTHER : selectedState && findCity(selectedState, city)?.name || ""}
@@ -117,6 +126,7 @@ export function StateCityFields({
               <Input
                 autoFocus
                 aria-label="Your city"
+                required
                 placeholder="Type your city"
                 className="mt-2"
                 value={city}

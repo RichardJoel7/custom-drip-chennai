@@ -42,6 +42,11 @@ body {
   border-color: var(--border);
 }
 
+/* Form fields with an error. Outside Tailwind's layers, like the rule above, so it can win over it. */
+[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
 :focus-visible {
   outline: 2px solid var(--foreground);
   outline-offset: 2px;

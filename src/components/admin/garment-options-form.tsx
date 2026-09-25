@@ -1,57 +1,94 @@
 "use client";
 
-import { useRef, useState } from "react";
-import {
-  saveGarmentPrintOptions,
-  saveGsmOptions,
-  saveTeeColors,
-  saveTeeSizes,
-  type ColorRowInput,
-  type GsmRowInput,
-  type SizeRowInput,
-} from "@/app/admin/(dashboard)/customizer/actions";
-import { Field, Row, Section, move, newKey, toNumber, withIds } from "@/components/admin/catalog-form-parts";
+import { useRef, useState, type Ref } from "react";
+import type { ColorRowInput, GsmRowInput, SizeRowInput } from "@/app/admin/(dashboard)/customizer/actions";
+import { Field, Row, Section, move, newKey, toNumber } from "@/components/admin/catalog-form-parts";
 import { Input } from "@/components/ui/input";
 import { PRINT_SIDE_LIST, SIDE_NAMES, sidePrice } from "@/lib/custom/pricing";
 import { uploadCatalogImage } from "@/lib/storage/upload-catalog-image";
 import { formatPrice } from "@/lib/utils/format";
 import type { CustomPrintOption, CustomTeeColor, CustomTeeGsm, CustomTeeSize } from "@/types";
 
-type SizeDraft = { key: string; id?: string; label: string; price: string; isActive: boolean };
-type GsmDraft = { key: string; id?: string; gsm: string; description: string; price: string; isActive: boolean };
-type ColorDraft = ColorRowInput & { key: string };
+// The garment editor's list sections. They hold no state of their own: the editor keeps every
+// section's rows and saves them all with one button (see garment-editor.tsx).
 
-// One component per section, each saving on its own; a save gives new rows their database
-// ids (withIds), so the next save updates them rather than adding them again.
+export type SizeDraft = { key: string; id?: string; label: string; price: string; isActive: boolean };
+export type GsmDraft = { key: string; id?: string; gsm: string; description: string; price: string; isActive: boolean };
+export type ColorDraft = ColorRowInput & { key: string };
 
-export function GarmentSizesForm({ garmentId, sizes: initial }: { garmentId: string; sizes: CustomTeeSize[] }) {
-  const [sizes, setSizes] = useState<SizeDraft[]>(() =>
-    initial.map((s) => ({ key: s.id, id: s.id, label: s.label, price: String(s.price), isActive: s.is_active }))
-  );
-  const set = (key: string, patch: Partial<SizeDraft>) =>
-    setSizes((list) => list.map((x) => (x.key === key ? { ...x, ...patch } : x)));
+export const sizeDrafts = (sizes: CustomTeeSize[]): SizeDraft[] =>
+  sizes.map((s) => ({ key: s.id, id: s.id, label: s.label, price: String(s.price), isActive: s.is_active }));
+
+export const colorDrafts = (colors: CustomTeeColor[]): ColorDraft[] =>
+  colors.map((c) => ({
+    key: c.id,
+    id: c.id,
+    name: c.name,
+    hex: c.hex,
+    frontImageUrl: c.front_image_url,
+    frontStoragePath: c.front_storage_path,
+    backImageUrl: c.back_image_url,
+    backStoragePath: c.back_storage_path,
+    isActive: c.is_active,
+  }));
+
+export const gsmDrafts = (gsmOptions: CustomTeeGsm[]): GsmDraft[] =>
+  gsmOptions.map((g) => ({
+    key: g.id,
+    id: g.id,
+    gsm: String(g.gsm),
+    description: g.description ?? "",
+    price: String(g.price),
+    isActive: g.is_active,
+  }));
+
+export const sizeRows = (sizes: SizeDraft[]): SizeRowInput[] =>
+  sizes.map((s) => ({ id: s.id, label: s.label, price: toNumber(s.price), isActive: s.isActive }));
+
+export const colorRows = (colors: ColorDraft[]): ColorRowInput[] =>
+  colors.map((c) => ({
+    id: c.id,
+    name: c.name,
+    hex: c.hex,
+    frontImageUrl: c.frontImageUrl,
+    frontStoragePath: c.frontStoragePath,
+    backImageUrl: c.backImageUrl,
+    backStoragePath: c.backStoragePath,
+    isActive: c.isActive,
+  }));
+
+export const gsmRows = (gsms: GsmDraft[]): GsmRowInput[] =>
+  gsms.map((g) => ({ id: g.id, gsm: toNumber(g.gsm), description: g.description, price: toNumber(g.price), isActive: g.isActive }));
+
+type ListProps<T> = {
+  rows: T[];
+  onChange: (rows: T[]) => void;
+  invalid?: boolean;
+  sectionRef?: Ref<HTMLElement>;
+};
+
+function patchRow<T extends { key: string }>(rows: T[], key: string, patch: Partial<T>) {
+  return rows.map((x) => (x.key === key ? { ...x, ...patch } : x));
+}
+
+export function GarmentSizesSection({ rows: sizes, onChange, invalid, sectionRef }: ListProps<SizeDraft>) {
+  const set = (key: string, patch: Partial<SizeDraft>) => onChange(patchRow(sizes, key, patch));
 
   return (
     <Section
       title="SIZES & BASE PRICE"
       description="The price of the blank garment in each size."
-      save={async () => {
-        const result = await saveTeeSizes(
-          garmentId,
-          sizes.map<SizeRowInput>((s) => ({ id: s.id, label: s.label, price: toNumber(s.price), isActive: s.isActive }))
-        );
-        if (!result.error) setSizes((list) => withIds(list, result.ids));
-        return result;
-      }}
-      onAdd={() => setSizes((list) => [...list, { key: newKey(), label: "", price: "", isActive: true }])}
+      invalid={invalid}
+      sectionRef={sectionRef}
+      onAdd={() => onChange([...sizes, { key: newKey(), label: "", price: "", isActive: true }])}
       addLabel="+ Add size"
     >
       {sizes.map((s, i) => (
         <Row
           key={s.key}
-          onUp={() => setSizes((l) => move(l, i, -1))}
-          onDown={() => setSizes((l) => move(l, i, 1))}
-          onRemove={() => setSizes((l) => l.filter((x) => x.key !== s.key))}
+          onUp={() => onChange(move(sizes, i, -1))}
+          onDown={() => onChange(move(sizes, i, 1))}
+          onRemove={() => onChange(sizes.filter((x) => x.key !== s.key))}
           isActive={s.isActive}
           onActive={(v) => set(s.key, { isActive: v })}
         >
@@ -67,47 +104,24 @@ export function GarmentSizesForm({ garmentId, sizes: initial }: { garmentId: str
   );
 }
 
-export function GarmentColorsForm({ garmentId, colors: initial }: { garmentId: string; colors: CustomTeeColor[] }) {
-  const [colors, setColors] = useState<ColorDraft[]>(() =>
-    initial.map((c) => ({
-      key: c.id,
-      id: c.id,
-      name: c.name,
-      hex: c.hex,
-      frontImageUrl: c.front_image_url,
-      frontStoragePath: c.front_storage_path,
-      backImageUrl: c.back_image_url,
-      backStoragePath: c.back_storage_path,
-      isActive: c.is_active,
-    }))
-  );
-  const set = (key: string, patch: Partial<ColorDraft>) =>
-    setColors((list) => list.map((x) => (x.key === key ? { ...x, ...patch } : x)));
+export function GarmentColorsSection({
+  garmentId,
+  rows: colors,
+  onChange,
+  invalid,
+  sectionRef,
+}: ListProps<ColorDraft> & { garmentId: string }) {
+  const set = (key: string, patch: Partial<ColorDraft>) => onChange(patchRow(colors, key, patch));
 
   return (
     <Section
       title="COLOURS"
       description="Colours customers can pick. The studio auto-colours the garment photo; if a colour doesn't look right (usually black), add a real photo of it with the same framing."
-      save={async () => {
-        const result = await saveTeeColors(
-          garmentId,
-          colors.map<ColorRowInput>((c) => ({
-            id: c.id,
-            name: c.name,
-            hex: c.hex,
-            frontImageUrl: c.frontImageUrl,
-            frontStoragePath: c.frontStoragePath,
-            backImageUrl: c.backImageUrl,
-            backStoragePath: c.backStoragePath,
-            isActive: c.isActive,
-          }))
-        );
-        if (!result.error) setColors((list) => withIds(list, result.ids));
-        return result;
-      }}
+      invalid={invalid}
+      sectionRef={sectionRef}
       onAdd={() =>
-        setColors((list) => [
-          ...list,
+        onChange([
+          ...colors,
           {
             key: newKey(),
             name: "",
@@ -125,9 +139,9 @@ export function GarmentColorsForm({ garmentId, colors: initial }: { garmentId: s
       {colors.map((c, i) => (
         <Row
           key={c.key}
-          onUp={() => setColors((l) => move(l, i, -1))}
-          onDown={() => setColors((l) => move(l, i, 1))}
-          onRemove={() => setColors((l) => l.filter((x) => x.key !== c.key))}
+          onUp={() => onChange(move(colors, i, -1))}
+          onDown={() => onChange(move(colors, i, 1))}
+          onRemove={() => onChange(colors.filter((x) => x.key !== c.key))}
           isActive={c.isActive}
           onActive={(v) => set(c.key, { isActive: v })}
         >
@@ -174,47 +188,24 @@ export function GarmentColorsForm({ garmentId, colors: initial }: { garmentId: s
   );
 }
 
-export function GarmentGsmForm({ garmentId, gsmOptions: initial }: { garmentId: string; gsmOptions: CustomTeeGsm[] }) {
-  const [gsms, setGsms] = useState<GsmDraft[]>(() =>
-    initial.map((g) => ({
-      key: g.id,
-      id: g.id,
-      gsm: String(g.gsm),
-      description: g.description ?? "",
-      price: String(g.price),
-      isActive: g.is_active,
-    }))
-  );
-  const set = (key: string, patch: Partial<GsmDraft>) =>
-    setGsms((list) => list.map((x) => (x.key === key ? { ...x, ...patch } : x)));
+export function GarmentGsmSection({ rows: gsms, onChange, invalid, sectionRef }: ListProps<GsmDraft>) {
+  const set = (key: string, patch: Partial<GsmDraft>) => onChange(patchRow(gsms, key, patch));
 
   return (
     <Section
       title="FABRIC WEIGHT (GSM)"
       description="Heavier fabric can cost more — the extra price is added to the garment price. Leave empty to hide the GSM choice for this garment."
-      save={async () => {
-        const result = await saveGsmOptions(
-          garmentId,
-          gsms.map<GsmRowInput>((g) => ({
-            id: g.id,
-            gsm: toNumber(g.gsm),
-            description: g.description,
-            price: toNumber(g.price),
-            isActive: g.isActive,
-          }))
-        );
-        if (!result.error) setGsms((list) => withIds(list, result.ids));
-        return result;
-      }}
-      onAdd={() => setGsms((list) => [...list, { key: newKey(), gsm: "", description: "", price: "0", isActive: true }])}
+      invalid={invalid}
+      sectionRef={sectionRef}
+      onAdd={() => onChange([...gsms, { key: newKey(), gsm: "", description: "", price: "0", isActive: true }])}
       addLabel="+ Add GSM"
     >
       {gsms.map((g, i) => (
         <Row
           key={g.key}
-          onUp={() => setGsms((l) => move(l, i, -1))}
-          onDown={() => setGsms((l) => move(l, i, 1))}
-          onRemove={() => setGsms((l) => l.filter((x) => x.key !== g.key))}
+          onUp={() => onChange(move(gsms, i, -1))}
+          onDown={() => onChange(move(gsms, i, 1))}
+          onRemove={() => onChange(gsms.filter((x) => x.key !== g.key))}
           isActive={g.isActive}
           onActive={(v) => set(g.key, { isActive: v })}
         >
@@ -239,31 +230,25 @@ export function GarmentGsmForm({ garmentId, gsmOptions: initial }: { garmentId: 
   );
 }
 
-export function GarmentPrintsForm({
-  garmentId,
+export function GarmentPrintsSection({
   printOptions,
-  allowedPrintOptionIds,
+  allowed,
+  onChange,
+  invalid,
+  sectionRef,
 }: {
-  garmentId: string;
   printOptions: CustomPrintOption[];
-  allowedPrintOptionIds: string[];
+  allowed: string[];
+  onChange: (allowed: string[]) => void;
+  invalid?: boolean;
+  sectionRef?: Ref<HTMLElement>;
 }) {
-  const [allowed, setAllowed] = useState<Set<string>>(() => new Set(allowedPrintOptionIds));
-
-  function toggle(id: string, on: boolean) {
-    setAllowed((prev) => {
-      const next = new Set(prev);
-      if (on) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }
-
   return (
     <Section
       title="PRINT SIZES OFFERED"
       description="Tick the print sizes that fit this garment. Their prices are shared — edit them under Print Prices."
-      save={() => saveGarmentPrintOptions(garmentId, [...allowed])}
+      invalid={invalid}
+      sectionRef={sectionRef}
     >
       {printOptions.length === 0 && (
         <p className="text-sm text-muted-foreground">No print sizes yet — add them under Print Prices.</p>
@@ -278,8 +263,10 @@ export function GarmentPrintsForm({
           <label key={o.id} className="flex cursor-pointer items-start gap-3 border border-border p-3 hover:border-foreground">
             <input
               type="checkbox"
-              checked={allowed.has(o.id)}
-              onChange={(e) => toggle(o.id, e.target.checked)}
+              checked={allowed.includes(o.id)}
+              onChange={(e) =>
+                onChange(e.target.checked ? [...allowed, o.id] : allowed.filter((id) => id !== o.id))
+              }
               className="mt-0.5 h-5 w-5 flex-none accent-foreground"
             />
             <span className="text-sm">

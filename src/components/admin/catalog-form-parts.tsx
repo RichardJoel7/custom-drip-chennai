@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode, type Ref } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/input";
@@ -30,20 +30,28 @@ export function move<T>(list: T[], index: number, delta: number) {
   return next;
 }
 
-/** A titled card with a Save button; `onAdd` adds an "+ Add …" button next to it. */
+/**
+ * A titled card. With `save` it has its own Save button; without, a page-wide save handles it
+ * (the garment editor). `onAdd` adds an "+ Add …" button.
+ */
 export function Section({
   title,
   description,
   save,
   onAdd,
   addLabel,
+  invalid,
+  sectionRef,
   children,
 }: {
   title: string;
   description: string;
-  save: () => Promise<{ error?: string }>;
+  save?: () => Promise<{ error?: string }>;
   onAdd?: () => void;
   addLabel?: string;
+  /** Outlined in red when the page-wide save found a problem here. */
+  invalid?: boolean;
+  sectionRef?: Ref<HTMLElement>;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -51,6 +59,7 @@ export function Section({
   const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(null);
 
   async function handleSave() {
+    if (!save) return;
     setSaving(true);
     setStatus(null);
     const result = await save();
@@ -64,24 +73,31 @@ export function Section({
   }
 
   return (
-    <section className="border border-border p-4 sm:p-6">
+    <section
+      ref={sectionRef}
+      className={cn("scroll-mt-6 border p-4 sm:p-6", invalid ? "border-danger ring-1 ring-danger" : "border-border")}
+    >
       <h2 className="font-display text-xl tracking-wide">{title}</h2>
       <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       <div className="mt-5 space-y-3">{children}</div>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        {onAdd && (
-          <button
-            type="button"
-            onClick={onAdd}
-            className="h-11 border border-dashed border-border px-4 text-sm font-semibold hover:border-foreground"
-          >
-            {addLabel}
-          </button>
-        )}
-        <Button onClick={handleSave} disabled={saving} className="ml-auto">
-          {saving ? "Saving…" : "Save"}
-        </Button>
-      </div>
+      {(onAdd || save) && (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          {onAdd && (
+            <button
+              type="button"
+              onClick={onAdd}
+              className="h-11 border border-dashed border-border px-4 text-sm font-semibold hover:border-foreground"
+            >
+              {addLabel}
+            </button>
+          )}
+          {save && (
+            <Button onClick={handleSave} disabled={saving} className="ml-auto">
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          )}
+        </div>
+      )}
       {status && (
         <p className={cn("mt-3 text-sm", status.ok ? "text-success" : "text-danger")} role="status">
           {status.message}

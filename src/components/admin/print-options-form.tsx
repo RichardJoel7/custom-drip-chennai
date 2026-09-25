@@ -126,7 +126,7 @@ export function PrintOptionsForm({ printOptions }: { printOptions: CustomPrintOp
                 ))}
               </div>
             </Field>
-            <div className="grid grid-cols-3 gap-2 sm:col-span-2">
+            <div className="grid grid-cols-1 items-end gap-3 sm:col-span-2 sm:grid-cols-3 sm:gap-2">
               <Field label="Front (₹)">
                 <Input inputMode="decimal" value={p.priceFront} placeholder="—" onChange={(e) => set({ priceFront: e.target.value })} />
               </Field>

@@ -213,68 +213,6 @@ export async function createGarment(name: string, gender: GarmentGender): Promis
   return { id: data.id as string };
 }
 
-export async function saveGarment(id: string, input: GarmentInput): Promise<Result> {
-  const { supabase } = await requireAdmin();
-  const name = input.name.trim().slice(0, 60);
-  if (!name) return { error: "Give the garment a name." };
-  if (!GENDERS.includes(input.gender)) return { error: "Choose men, women or unisex." };
-  if (input.isActive && (!input.front || !input.back)) {
-    return { error: "Upload both a front and a back photo before putting this garment live." };
-  }
-
-  const photos = [input.front, input.back].filter((p): p is GarmentPhotoInput => !!p);
-  for (const photo of photos) {
-    if (!photo.imageUrl || !photo.storagePath || !(photo.aspect > 0.2 && photo.aspect < 5)) {
-      return { error: "One of the photos didn't upload properly. Please upload it again." };
-    }
-    if (!isPrintBox(photo.area)) return { error: "Mark a print area on both photos." };
-  }
-  if (photos.length > 0 && !(input.areaWidthCm !== null && input.areaWidthCm >= 5 && input.areaWidthCm <= 80)) {
-    return { error: "Enter the print area's real width in cm (between 5 and 80)." };
-  }
-  if (input.logoSpot && !(isFraction(input.logoSpot.x) && isFraction(input.logoSpot.y))) {
-    return { error: "Place the logo spot on the front photo." };
-  }
-
-  const { data: before, error: readError } = await supabase
-    .from("custom_garments")
-    .select("front_storage_path, back_storage_path")
-    .eq("id", id)
-    .single();
-  if (readError || !before) return { error: GENERIC_ERROR };
-
-  const { error } = await supabase
-    .from("custom_garments")
-    .update({
-      name,
-      gender: input.gender,
-      description: input.description.trim().slice(0, 200) || null,
-      is_active: input.isActive,
-      front_image_url: input.front?.imageUrl ?? null,
-      front_storage_path: input.front?.storagePath ?? null,
-      front_aspect: input.front?.aspect ?? null,
-      front_area: input.front?.area ?? null,
-      back_image_url: input.back?.imageUrl ?? null,
-      back_storage_path: input.back?.storagePath ?? null,
-      back_aspect: input.back?.aspect ?? null,
-      back_area: input.back?.area ?? null,
-      area_width_cm: photos.length > 0 ? input.areaWidthCm : null,
-      logo_spot: photos.length > 0 ? input.logoSpot : null,
-    })
-    .eq("id", id);
-  if (error) {
-    console.error("saveGarment failed:", error);
-    return { error: GENERIC_ERROR };
-  }
-
-  // Photos that were replaced or removed are deleted from storage.
-  const kept = new Set([input.front?.storagePath, input.back?.storagePath]);
-  await removeFiles([before.front_storage_path, before.back_storage_path].filter((p) => p && !kept.has(p)));
-
-  revalidateStudio(id);
-  return {};
-}
-
 /** Deletes the garment with its sizes, colours and photos. Past orders keep their own copy. */
 export async function deleteGarment(id: string): Promise<Result> {
   const { supabase } = await requireAdmin();
@@ -318,66 +256,123 @@ export async function setGarmentActive(id: string, isActive: boolean): Promise<R
   return {};
 }
 
-/** Which print sizes this garment offers. */
-export async function saveGarmentPrintOptions(garmentId: string, printOptionIds: string[]): Promise<Result> {
-  const { supabase } = await requireAdmin();
-  const wanted = [...new Set(printOptionIds)];
+// --- Saving the whole garment editor at once -----------------------------------------------
 
-  if (wanted.length > 0) {
-    const { error } = await supabase
-      .from("custom_garment_print_options")
-      .upsert(
-        wanted.map((printOptionId) => ({ garment_id: garmentId, print_option_id: printOptionId })),
-        { onConflict: "garment_id,print_option_id", ignoreDuplicates: true }
-      );
-    if (error) {
-      console.error("saveGarmentPrintOptions insert failed:", error);
-      return { error: GENERIC_ERROR };
-    }
+export type EditorSection = "details" | "sizes" | "colors" | "gsm" | "prints";
+
+export interface GarmentEditorInput {
+  details: GarmentInput;
+  sizes: SizeRowInput[];
+  colors: ColorRowInput[];
+  gsm: GsmRowInput[];
+  /** Which shared print sizes this garment offers. */
+  printOptionIds: string[];
+}
+
+export interface GarmentEditorResult {
+  error?: string;
+  /** Where the problem is, so the editor can point at it. */
+  section?: EditorSection;
+  /** Each list's saved ids in order (new rows included), for the lists that saved. */
+  sizeIds?: string[];
+  colorIds?: string[];
+  gsmIds?: string[];
+}
+
+function checkDetails(input: GarmentInput): string | null {
+  if (!input.name.trim()) return "Give the garment a name.";
+  if (!GENDERS.includes(input.gender)) return "Choose men, women or unisex.";
+  if (input.isActive && (!input.front || !input.back)) {
+    return "Upload both a front and a back photo before putting this garment live.";
   }
+  const photos = [input.front, input.back].filter((p): p is GarmentPhotoInput => !!p);
+  for (const photo of photos) {
+    if (!photo.imageUrl || !photo.storagePath || !(photo.aspect > 0.2 && photo.aspect < 5)) {
+      return "One of the photos didn't upload properly. Please upload it again.";
+    }
+    if (!isPrintBox(photo.area)) return "Mark a print area on both photos.";
+  }
+  if (photos.length > 0 && !(input.areaWidthCm !== null && input.areaWidthCm >= 5 && input.areaWidthCm <= 80)) {
+    return "Enter the print area's real width in cm (between 5 and 80).";
+  }
+  if (input.logoSpot && !(isFraction(input.logoSpot.x) && isFraction(input.logoSpot.y))) {
+    return "Place the logo spot on the front photo.";
+  }
+  return null;
+}
 
-  let removal = supabase.from("custom_garment_print_options").delete().eq("garment_id", garmentId);
-  if (wanted.length > 0) removal = removal.not("print_option_id", "in", `(${wanted.join(",")})`);
-  const { error } = await removal;
+function checkSizes(rows: SizeRowInput[]): string | null {
+  if (rows.some((r) => !r.label.trim())) return "Every size needs a label, e.g. M or XL.";
+  if (rows.some((r) => !isPrice(r.price))) return "Enter a valid price for every size.";
+  const duplicate = findDuplicate(rows.map((r) => r.label));
+  return duplicate ? `Size "${duplicate}" is listed twice.` : null;
+}
+
+function checkColors(rows: ColorRowInput[]): string | null {
+  if (rows.some((r) => !r.name.trim())) return "Every colour needs a name.";
+  if (rows.some((r) => !/^#[0-9a-fA-F]{6}$/.test(r.hex))) return "Colours must be a hex code like #111111.";
+  const duplicate = findDuplicate(rows.map((r) => r.name));
+  return duplicate ? `Colour "${duplicate}" is listed twice.` : null;
+}
+
+function checkGsm(rows: GsmRowInput[]): string | null {
+  if (rows.some((r) => !(Number.isInteger(r.gsm) && r.gsm >= 100 && r.gsm <= 600))) {
+    return "GSM must be a whole number between 100 and 600, e.g. 180.";
+  }
+  if (rows.some((r) => !isPrice(r.price))) return "Enter a valid extra price for every GSM (0 if none).";
+  const duplicate = findDuplicate(rows.map((r) => String(r.gsm)));
+  return duplicate ? `${duplicate} GSM is listed twice.` : null;
+}
+
+async function writeDetails(id: string, input: GarmentInput): Promise<Result> {
+  const { supabase } = await requireAdmin();
+  const photos = [input.front, input.back].filter(Boolean);
+
+  const { data: before, error: readError } = await supabase
+    .from("custom_garments")
+    .select("front_storage_path, back_storage_path")
+    .eq("id", id)
+    .single();
+  if (readError || !before) return { error: GENERIC_ERROR };
+
+  const { error } = await supabase
+    .from("custom_garments")
+    .update({
+      name: input.name.trim().slice(0, 60),
+      gender: input.gender,
+      description: input.description.trim().slice(0, 200) || null,
+      is_active: input.isActive,
+      front_image_url: input.front?.imageUrl ?? null,
+      front_storage_path: input.front?.storagePath ?? null,
+      front_aspect: input.front?.aspect ?? null,
+      front_area: input.front?.area ?? null,
+      back_image_url: input.back?.imageUrl ?? null,
+      back_storage_path: input.back?.storagePath ?? null,
+      back_aspect: input.back?.aspect ?? null,
+      back_area: input.back?.area ?? null,
+      area_width_cm: photos.length > 0 ? input.areaWidthCm : null,
+      logo_spot: photos.length > 0 ? input.logoSpot : null,
+    })
+    .eq("id", id);
   if (error) {
-    console.error("saveGarmentPrintOptions delete failed:", error);
+    console.error("garment details save failed:", error);
     return { error: GENERIC_ERROR };
   }
 
-  revalidateStudio(garmentId);
+  // Photos that were replaced or removed are deleted from storage.
+  const kept = new Set([input.front?.storagePath, input.back?.storagePath]);
+  await removeFiles([before.front_storage_path, before.back_storage_path].filter((p) => p && !kept.has(p)));
   return {};
 }
 
-// --- Per-garment price lists ------------------------------------------------------------
-
-export async function saveTeeSizes(garmentId: string, rows: SizeRowInput[]): Promise<ListResult> {
-  if (rows.some((r) => !r.label.trim())) return { error: "Every size needs a label, e.g. M or XL." };
-  if (rows.some((r) => !isPrice(r.price))) return { error: "Enter a valid price for every size." };
-  const duplicate = findDuplicate(rows.map((r) => r.label));
-  if (duplicate) return { error: `Size "${duplicate}" is listed twice.` };
-
-  const { error, ids } = await syncTable(
-    "custom_tee_sizes",
-    rows,
-    (r, index) => ({ label: r.label.trim(), price: r.price, is_active: r.isActive, sort_order: index }),
-    garmentId
-  );
-  return error ? { error } : { ids };
-}
-
-export async function saveTeeColors(garmentId: string, rows: ColorRowInput[]): Promise<ListResult> {
-  if (rows.some((r) => !r.name.trim())) return { error: "Every colour needs a name." };
-  if (rows.some((r) => !/^#[0-9a-fA-F]{6}$/.test(r.hex))) return { error: "Colours must be a hex code like #111111." };
-  const duplicate = findDuplicate(rows.map((r) => r.name));
-  if (duplicate) return { error: `Colour "${duplicate}" is listed twice.` };
-
+async function writeColors(garmentId: string, rows: ColorRowInput[]) {
   const { supabase } = await requireAdmin();
   const { data: before } = await supabase
     .from("custom_tee_colors")
     .select("front_storage_path, back_storage_path")
     .eq("garment_id", garmentId);
 
-  const { error, ids } = await syncTable(
+  const result = await syncTable(
     "custom_tee_colors",
     rows,
     (r, index) => ({
@@ -392,27 +387,77 @@ export async function saveTeeColors(garmentId: string, rows: ColorRowInput[]): P
     }),
     garmentId
   );
-  if (error) return { error };
+  if (result.error) return result;
 
   // Colour photos that were replaced, removed or belonged to removed colours.
   const kept = new Set(rows.flatMap((r) => [r.frontStoragePath, r.backStoragePath]));
   await removeFiles(
     (before ?? []).flatMap((c) => [c.front_storage_path, c.back_storage_path]).filter((p) => p && !kept.has(p))
   );
-  return { ids };
+  return result;
 }
 
-export async function saveGsmOptions(garmentId: string, rows: GsmRowInput[]): Promise<ListResult> {
-  if (rows.some((r) => !(Number.isInteger(r.gsm) && r.gsm >= 100 && r.gsm <= 600))) {
-    return { error: "GSM must be a whole number between 100 and 600, e.g. 180." };
-  }
-  if (rows.some((r) => !isPrice(r.price))) return { error: "Enter a valid extra price for every GSM (0 if none)." };
-  const duplicate = findDuplicate(rows.map((r) => String(r.gsm)));
-  if (duplicate) return { error: `${duplicate} GSM is listed twice.` };
+async function writePrintOptions(garmentId: string, printOptionIds: string[]): Promise<Result> {
+  const { supabase } = await requireAdmin();
+  const wanted = [...new Set(printOptionIds)];
 
-  const { error, ids } = await syncTable(
+  if (wanted.length > 0) {
+    const { error } = await supabase
+      .from("custom_garment_print_options")
+      .upsert(
+        wanted.map((printOptionId) => ({ garment_id: garmentId, print_option_id: printOptionId })),
+        { onConflict: "garment_id,print_option_id", ignoreDuplicates: true }
+      );
+    if (error) {
+      console.error("garment print sizes insert failed:", error);
+      return { error: GENERIC_ERROR };
+    }
+  }
+
+  let removal = supabase.from("custom_garment_print_options").delete().eq("garment_id", garmentId);
+  if (wanted.length > 0) removal = removal.not("print_option_id", "in", `(${wanted.join(",")})`);
+  const { error } = await removal;
+  if (error) {
+    console.error("garment print sizes delete failed:", error);
+    return { error: GENERIC_ERROR };
+  }
+  return {};
+}
+
+/**
+ * Saves everything on the garment editor with one button. Every section is checked before
+ * anything is written, so a mistake in one doesn't leave the others half-saved.
+ */
+export async function saveGarmentEditor(id: string, input: GarmentEditorInput): Promise<GarmentEditorResult> {
+  await requireAdmin();
+
+  const checks: [EditorSection, string | null][] = [
+    ["details", checkDetails(input.details)],
+    ["sizes", checkSizes(input.sizes)],
+    ["colors", checkColors(input.colors)],
+    ["gsm", checkGsm(input.gsm)],
+  ];
+  const failed = checks.find(([, error]) => error);
+  if (failed) return { section: failed[0], error: failed[1] ?? GENERIC_ERROR };
+
+  const saved: GarmentEditorResult = {};
+
+  const sizes = await syncTable(
+    "custom_tee_sizes",
+    input.sizes,
+    (r, index) => ({ label: r.label.trim(), price: r.price, is_active: r.isActive, sort_order: index }),
+    id
+  );
+  if (sizes.error) return { ...saved, section: "sizes", error: sizes.error };
+  saved.sizeIds = sizes.ids;
+
+  const colors = await writeColors(id, input.colors);
+  if (colors.error) return { ...saved, section: "colors", error: colors.error };
+  saved.colorIds = colors.ids;
+
+  const gsm = await syncTable(
     "custom_tee_gsm_options",
-    rows,
+    input.gsm,
     (r, index) => ({
       gsm: r.gsm,
       description: r.description.trim() || null,
@@ -420,9 +465,19 @@ export async function saveGsmOptions(garmentId: string, rows: GsmRowInput[]): Pr
       is_active: r.isActive,
       sort_order: index,
     }),
-    garmentId
+    id
   );
-  return error ? { error } : { ids };
+  if (gsm.error) return { ...saved, section: "gsm", error: gsm.error };
+  saved.gsmIds = gsm.ids;
+
+  const prints = await writePrintOptions(id, input.printOptionIds);
+  if (prints.error) return { ...saved, section: "prints", error: prints.error };
+
+  const details = await writeDetails(id, input.details);
+  if (details.error) return { ...saved, section: "details", error: details.error };
+
+  revalidateStudio(id);
+  return saved;
 }
 
 // --- Shared print sizes ---------------------------------------------------------------

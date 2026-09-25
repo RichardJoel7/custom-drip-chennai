@@ -2,15 +2,27 @@ import { forwardRef } from "react";
 import type { InputHTMLAttributes, LabelHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/utils/cn";
 
-export const Label = forwardRef<HTMLLabelElement, LabelHTMLAttributes<HTMLLabelElement>>(
-  ({ className, ...props }, ref) => (
-    <label
-      ref={ref}
-      className={cn("block text-xs font-semibold uppercase tracking-wide text-foreground mb-1.5", className)}
-      {...props}
-    />
-  )
-);
+export const Label = forwardRef<
+  HTMLLabelElement,
+  LabelHTMLAttributes<HTMLLabelElement> & {
+    /** Adds a red asterisk after the label text. */
+    required?: boolean;
+  }
+>(({ className, required, children, ...props }, ref) => (
+  <label
+    ref={ref}
+    className={cn("block text-xs font-semibold uppercase tracking-wide text-foreground mb-1.5", className)}
+    {...props}
+  >
+    {children}
+    {required && (
+      <span className="text-danger" aria-hidden="true">
+        {" "}
+        *
+      </span>
+    )}
+  </label>
+));
 Label.displayName = "Label";
 
 const fieldBase =

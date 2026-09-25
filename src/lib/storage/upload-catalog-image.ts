@@ -84,7 +84,7 @@ export async function uploadCatalogImage(
   const check = inspectPhoto(img);
   if (check && check.clearEdgeRatio < 0.6) {
     throw new Error(
-      "This photo's background isn't transparent — the checkerboard (or white) is part of the image. Remove the background with a tool such as Photoroom or Canva and upload the PNG it gives you."
+      "This photo's background isn't transparent — the checkerboard (or white) is part of the image. Remove the background with Photoroom's free background remover (photoroom.com/tools/background-remover) and upload the PNG it gives you."
     );
   }
   if (check && kind === "garment" && check.lightness < 0.55) {

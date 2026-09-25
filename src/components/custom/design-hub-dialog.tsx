@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BACKGROUND_REMOVER_URL } from "@/lib/custom/background-remover";
 import { uploadCustomerDesign } from "@/lib/storage/upload-customer-design";
 import { cn } from "@/lib/utils/cn";
 import type { StudioDesign } from "@/types";
@@ -321,6 +322,23 @@ function UploadsPanel({
           {error}
         </p>
       )}
+
+      <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-muted p-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm">
+          <span className="font-semibold">Image has a background?</span>{" "}
+          <span className="text-muted-foreground">
+            Remove it free on Photoroom, download the PNG, then upload it here.
+          </span>
+        </p>
+        <a
+          href={BACKGROUND_REMOVER_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex h-11 flex-none items-center justify-center rounded-full border border-foreground bg-background px-5 text-xs font-semibold uppercase tracking-wide hover:bg-foreground hover:text-background"
+        >
+          Remove background ↗
+        </a>
+      </div>
 
       {uploads.length > 0 && (
         <>

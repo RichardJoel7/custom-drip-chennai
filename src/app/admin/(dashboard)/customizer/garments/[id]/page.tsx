@@ -1,13 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { DeleteGarmentButton, GarmentDetailsForm } from "@/components/admin/garment-editor";
-import {
-  GarmentColorsForm,
-  GarmentGsmForm,
-  GarmentPrintsForm,
-  GarmentSizesForm,
-} from "@/components/admin/garment-options-form";
+import { DeleteGarmentButton, GarmentEditor } from "@/components/admin/garment-editor";
 import { MigrationNotice } from "@/components/admin/migration-notice";
 import { garmentChecklist } from "@/lib/custom/garment-status";
 import { optionsForGarment } from "@/lib/custom/pricing";
@@ -25,7 +19,6 @@ export default async function GarmentEditorPage({ params }: PageProps<"/admin/cu
   if (!garment) notFound();
 
   const options = optionsForGarment(catalog, garment.id);
-  const allowedIds = catalog.garmentPrintOptionIds[garment.id] ?? [];
 
   return (
     <div className="max-w-4xl space-y-8">
@@ -33,20 +26,14 @@ export default async function GarmentEditorPage({ params }: PageProps<"/admin/cu
         ← All garments
       </Link>
 
-      <GarmentDetailsForm
+      <GarmentEditor
         garment={garment}
+        sizes={options.sizes}
         colors={options.colors}
-        printOptions={options.printOptions}
-        checklist={garmentChecklist(catalog, garment)}
-      />
-
-      <GarmentSizesForm garmentId={garment.id} sizes={options.sizes} />
-      <GarmentColorsForm garmentId={garment.id} colors={options.colors} />
-      <GarmentGsmForm garmentId={garment.id} gsmOptions={options.gsmOptions} />
-      <GarmentPrintsForm
-        garmentId={garment.id}
+        gsmOptions={options.gsmOptions}
         printOptions={catalog.printOptions}
-        allowedPrintOptionIds={allowedIds}
+        allowedPrintOptionIds={catalog.garmentPrintOptionIds[garment.id] ?? []}
+        checklist={garmentChecklist(catalog, garment)}
       />
 
       <DeleteGarmentButton garmentId={garment.id} name={garment.name} />

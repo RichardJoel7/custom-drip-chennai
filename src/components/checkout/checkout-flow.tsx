@@ -36,6 +36,30 @@ const EMPTY_FORM: CheckoutFormValues = {
 };
 
 type Step = "details" | "payment";
+type FieldErrors = Partial<Record<keyof CheckoutFormValues, string>>;
+
+// Required fields in the order they appear, so a failed check can jump to the first one.
+const REQUIRED_FIELDS: (keyof CheckoutFormValues)[] = [
+  "fullName",
+  "mobileNumber",
+  "email",
+  "addressLine1",
+  "state",
+  "city",
+  "pincode",
+];
+
+function validate(form: CheckoutFormValues) {
+  const result = checkoutFormSchema.safeParse(form);
+  const errors: FieldErrors = {};
+  if (!result.success) {
+    for (const issue of result.error.issues) {
+      const key = issue.path[0] as keyof CheckoutFormValues;
+      if (!errors[key]) errors[key] = issue.message;
+    }
+  }
+  return { result, errors };
+}
 
 function toOrderPayload(item: CartItem) {
   if (item.kind === "custom") {
@@ -78,7 +102,9 @@ export function CheckoutFlow({
   const [usingSaved, setUsingSaved] = useState(savedDetails !== null);
   const [saveForLater, setSaveForLater] = useState(true);
   const [detailsSaved, setDetailsSaved] = useState(false);
-  const [errors, setErrors] = useState<Partial<Record<keyof CheckoutFormValues, string>>>({});
+  const [errors, setErrors] = useState<FieldErrors>({});
+  // After a first try, errors update as the customer types, so fixed fields clear straight away.
+  const [attempted, setAttempted] = useState(false);
   const [upiTransactionId, setUpiTransactionId] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -88,26 +114,33 @@ export function CheckoutFlow({
 
   const orderSummary = useMemo(() => items.map(summaryLabel).join(", "), [items]);
 
+  function changeForm(patch: Partial<CheckoutFormValues>) {
+    const next = { ...form, ...patch };
+    setForm(next);
+    if (attempted) setErrors(validate(next).errors);
+  }
+
   function updateField<K extends keyof CheckoutFormValues>(key: K, value: CheckoutFormValues[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    changeForm({ [key]: value } as Partial<CheckoutFormValues>);
   }
 
   function clearForm() {
     setForm(initialForm(null, accountEmail));
     setFormVersion((v) => v + 1);
     setErrors({});
+    setAttempted(false);
     setUsingSaved(false);
   }
 
   function handleContinueToPayment() {
-    const result = checkoutFormSchema.safeParse(form);
+    const { result, errors: fieldErrors } = validate(form);
     if (!result.success) {
-      const fieldErrors: Partial<Record<keyof CheckoutFormValues, string>> = {};
-      for (const issue of result.error.issues) {
-        const key = issue.path[0] as keyof CheckoutFormValues;
-        if (!fieldErrors[key]) fieldErrors[key] = issue.message;
-      }
+      setAttempted(true);
       setErrors(fieldErrors);
+      const first = REQUIRED_FIELDS.find((key) => fieldErrors[key]);
+      const field = first ? document.getElementById(first) : null;
+      field?.scrollIntoView({ behavior: "smooth", block: "center" });
+      field?.focus({ preventScroll: true });
       return;
     }
     setErrors({});
@@ -204,10 +237,18 @@ export function CheckoutFlow({
             </div>
           )}
 
+          <p className="text-xs text-muted-foreground">
+            Fields marked <span className="font-semibold text-danger">*</span> are required.
+          </p>
+
           <div>
-            <Label htmlFor="fullName">Full Name</Label>
+            <Label htmlFor="fullName" required>
+              Full Name
+            </Label>
             <Input
               id="fullName"
+              required
+              aria-invalid={!!errors.fullName}
               autoComplete="name"
               value={form.fullName}
               onChange={(e) => updateField("fullName", e.target.value)}
@@ -216,9 +257,13 @@ export function CheckoutFlow({
           </div>
 
           <div>
-            <Label htmlFor="mobileNumber">Mobile Number</Label>
+            <Label htmlFor="mobileNumber" required>
+              Mobile Number
+            </Label>
             <Input
               id="mobileNumber"
+              required
+              aria-invalid={!!errors.mobileNumber}
               type="tel"
               inputMode="numeric"
               autoComplete="tel-national"
@@ -229,9 +274,13 @@ export function CheckoutFlow({
           </div>
 
           <div>
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" required>
+              Email
+            </Label>
             <Input
               id="email"
+              required
+              aria-invalid={!!errors.email}
               type="email"
               autoComplete="email"
               value={form.email}
@@ -241,9 +290,13 @@ export function CheckoutFlow({
           </div>
 
           <div>
-            <Label htmlFor="addressLine1">Address</Label>
+            <Label htmlFor="addressLine1" required>
+              Address
+            </Label>
             <Input
               id="addressLine1"
+              required
+              aria-invalid={!!errors.addressLine1}
               autoComplete="address-line1"
               value={form.addressLine1}
               onChange={(e) => updateField("addressLine1", e.target.value)}
@@ -276,13 +329,17 @@ export function CheckoutFlow({
             state={form.state}
             city={form.city}
             errors={{ state: errors.state, city: errors.city }}
-            onChange={(location) => setForm((prev) => ({ ...prev, ...location }))}
+            onChange={(location) => changeForm(location)}
           />
 
           <div>
-            <Label htmlFor="pincode">Pincode</Label>
+            <Label htmlFor="pincode" required>
+              Pincode
+            </Label>
             <Input
               id="pincode"
+              required
+              aria-invalid={!!errors.pincode}
               inputMode="numeric"
               autoComplete="postal-code"
               maxLength={6}
@@ -342,9 +399,12 @@ export function CheckoutFlow({
           <UpiPaymentPanel settings={settings} amount={total} />
 
           <div>
-            <Label htmlFor="upiTransactionId">UPI Transaction ID *</Label>
+            <Label htmlFor="upiTransactionId" required>
+              UPI Transaction ID
+            </Label>
             <Input
               id="upiTransactionId"
+              required
               value={upiTransactionId}
               onChange={(e) => setUpiTransactionId(e.target.value)}
               placeholder="e.g. 123456789012"

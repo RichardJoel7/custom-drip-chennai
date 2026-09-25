@@ -1,0 +1,13 @@
+<!--
+  "Confirm signup" email with a 6-digit code (the sign-up page asks for it).
+  Hosted projects: paste this into Supabase → Authentication → Emails → Confirm signup.
+  Local: wired up in supabase/config.toml ([auth.email.template.confirmation]).
+-->
+<div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #0a0a0a">
+  <h2 style="margin: 0 0 8px; letter-spacing: 0.02em">CUSTOM DRIP CHENNAI</h2>
+  <p style="margin: 0 0 20px; color: #6b6b6b">Confirm your email to finish creating your account.</p>
+  <p style="margin: 0 0 8px">Your code is:</p>
+  <p style="margin: 0 0 20px; font-size: 32px; font-weight: 700; letter-spacing: 8px">{{ .Token }}</p>
+  <p style="margin: 0 0 4px; color: #6b6b6b; font-size: 13px">Enter it on the sign-up page. It expires in 1 hour.</p>
+  <p style="margin: 0; color: #6b6b6b; font-size: 13px">Didn't sign up? You can ignore this email.</p>
+</div>
