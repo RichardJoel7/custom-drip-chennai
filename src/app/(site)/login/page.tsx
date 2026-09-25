@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
+import { emailHasAccount } from "./actions";
 
 function GoogleIcon() {
   return (
@@ -40,7 +41,7 @@ type Purpose = "signup" | "reset";
 /** Turns Supabase's email errors into something a customer can act on. */
 function sendErrorMessage(message: string) {
   const wait = message.match(/after (\d+) seconds?/i);
-  if (wait) return `Please wait ${wait[1]} seconds before asking for another code.`;
+  if (wait) return Number(wait[1]) > 1 ? `Please wait ${wait[1]} seconds before asking for another code.` : "Please wait a moment and try again.";
   if (/rate limit/i.test(message)) return "Too many emails sent just now. Please try again in a few minutes.";
   if (/signups? not allowed/i.test(message)) return "There's no account with that email yet — create one instead.";
   if (/invalid.*email|email.*invalid/i.test(message)) return "Enter a valid email address.";
@@ -64,6 +65,8 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Sign-up found an existing account for this email.
+  const [alreadyMember, setAlreadyMember] = useState(false);
 
   // Ticks the "resend in 42s" countdown while it's running.
   useEffect(() => {
@@ -77,6 +80,7 @@ function LoginForm() {
     setMode(nextMode);
     setError(null);
     setInfo(null);
+    setAlreadyMember(false);
     setPassword("");
     setConfirmPassword("");
   }
@@ -171,9 +175,20 @@ function LoginForm() {
     router.refresh();
   }
 
-  function handleEmailStep(e: React.FormEvent) {
+  async function handleEmailStep(e: React.FormEvent) {
     e.preventDefault();
-    sendCode(mode === "forgot" ? "reset" : "signup");
+    if (mode === "forgot") return sendCode("reset");
+
+    // Already signed up (and maybe forgotten)? Point them to sign in instead of a new code.
+    setError(null);
+    setLoading(true);
+    const exists = await emailHasAccount(email);
+    setLoading(false);
+    if (exists) {
+      setAlreadyMember(true);
+      return;
+    }
+    sendCode("signup");
   }
 
   const emailField = (
@@ -185,7 +200,10 @@ function LoginForm() {
         autoComplete="username"
         required
         value={email}
-        onChange={(e) => setEmail(e.target.value)}
+        onChange={(e) => {
+          setEmail(e.target.value);
+          setAlreadyMember(false);
+        }}
       />
     </div>
   );
@@ -348,6 +366,23 @@ function LoginForm() {
         <form onSubmit={handleEmailStep} className="space-y-4">
           {emailField}
           {error && <p className="text-sm text-danger">{error}</p>}
+          {alreadyMember && (
+            <div className="rounded-2xl bg-muted p-4 text-sm" role="alert">
+              <p className="font-semibold">You&apos;re already a member.</p>
+              <p className="mt-1 text-muted-foreground">
+                {email.trim()} already has an account. Sign in with your password or Google — or use Forgot password if
+                you&apos;ve forgotten it.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button type="button" size="md" onClick={() => goTo("signin")}>
+                  Sign In
+                </Button>
+                <Button type="button" size="md" variant="outline" onClick={() => goTo("forgot")}>
+                  Forgot Password
+                </Button>
+              </div>
+            </div>
+          )}
           <Button type="submit" size="lg" className="w-full" disabled={loading}>
             {loading ? "Sending code…" : "Send Code"}
           </Button>
