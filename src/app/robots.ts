@@ -1,15 +1,31 @@
 import type { MetadataRoute } from "next";
+import { SITE_URL } from "@/lib/seo/site";
 import { isStaging } from "@/lib/utils/app-env";
 
 export default function robots(): MetadataRoute.Robots {
   if (isStaging) return { rules: { userAgent: "*", disallow: "/" } };
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-
   return {
     rules: [
-      { userAgent: "*", allow: "/", disallow: ["/admin", "/api", "/order-success", "/track"] },
+      {
+        userAgent: "*",
+        allow: "/",
+        // private or per-customer pages: nothing useful for search results
+        disallow: [
+          "/admin",
+          "/api",
+          "/auth",
+          "/account",
+          "/cart",
+          "/checkout",
+          "/login",
+          "/order-success",
+          "/track",
+          "/wishlist",
+        ],
+      },
     ],
-    sitemap: `${siteUrl}/sitemap.xml`,
+    sitemap: `${SITE_URL}/sitemap.xml`,
+    host: SITE_URL,
   };
 }

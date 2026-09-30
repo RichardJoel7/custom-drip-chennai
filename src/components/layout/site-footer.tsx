@@ -6,11 +6,15 @@ import type { Settings } from "@/types";
 
 const FOOTER_LINKS = [
   { href: "/shop", label: "Shop" },
+  { href: "/customize", label: "Custom T-Shirt Printing" },
+  { href: "/bulk-orders", label: "Bulk Orders" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
   { href: "/size-guide", label: "Size Guide" },
   { href: "/shipping-policy", label: "Shipping" },
   { href: "/returns", label: "Returns & Exchange" },
+  { href: "/privacy-policy", label: "Privacy Policy" },
+  { href: "/terms", label: "Terms & Conditions" },
 ];
 
 export function SiteFooter({ settings }: { settings: Settings }) {

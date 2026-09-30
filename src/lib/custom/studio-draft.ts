@@ -1,4 +1,4 @@
-import type { DesignSource, PrintSide, PrintTransform } from "@/types";
+import type { CmRect, DesignSource, PrintSide, PrintTransform } from "@/types";
 
 /**
  * The studio's choices, carried in the URL (?draft=) through sign-in, so a customer who signs
@@ -12,10 +12,14 @@ export interface StudioDraft {
   quantity: number;
   prints: {
     side: PrintSide;
-    printOptionId: string;
+    kind: "fixed" | "custom";
+    /** Fixed prints only. */
+    printOptionId: string | null;
     designId: string | null;
     designSource: DesignSource | null;
     transform: PrintTransform | null;
+    /** Custom-size prints only. */
+    rect: CmRect | null;
   }[];
   /** The print whose design was being chosen, so the upload tab opens again. */
   choosingFor: string | null;
@@ -39,16 +43,22 @@ export function decodeStudioDraft(encoded: string): StudioDraft | null {
       return null;
     }
     const prints = raw.prints.slice(0, 8).flatMap((p) => {
-      if (!p || (p.side !== "front" && p.side !== "back") || !isString(p.printOptionId)) return [];
+      if (!p || (p.side !== "front" && p.side !== "back")) return [];
+      const kind = p.kind === "custom" ? "custom" : "fixed";
+      const r = p.rect;
+      const rect = r && isNumber(r.x) && isNumber(r.y) && isNumber(r.w) && isNumber(r.h) ? { x: r.x, y: r.y, w: r.w, h: r.h } : null;
+      if (kind === "custom" ? !rect : !isString(p.printOptionId)) return [];
       const t = p.transform;
       return [
         {
           side: p.side,
-          printOptionId: p.printOptionId,
+          kind,
+          printOptionId: kind === "fixed" && isString(p.printOptionId) ? p.printOptionId : null,
           designId: isString(p.designId) ? p.designId : null,
           designSource: p.designSource === "upload" || p.designSource === "hub" ? p.designSource : null,
           transform: t && isNumber(t.scale) && isNumber(t.dx) && isNumber(t.dy) ? { scale: t.scale, dx: t.dx, dy: t.dy } : null,
-        },
+          rect: kind === "custom" ? rect : null,
+        } as StudioDraft["prints"][number],
       ];
     });
     return {

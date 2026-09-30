@@ -5,6 +5,7 @@ import { formatPrice } from "@/lib/utils/format";
 export const metadata: Metadata = {
   title: "Shipping Policy",
   description: "Shipping information for Custom Drip Chennai orders.",
+  alternates: { canonical: "/shipping-policy" },
 };
 
 export default async function ShippingPolicyPage() {

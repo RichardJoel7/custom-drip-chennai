@@ -9,7 +9,7 @@ import { Input, Label, Textarea, FieldError } from "@/components/ui/input";
 import { StateCityFields } from "@/components/checkout/state-city-fields";
 import { UpiPaymentPanel } from "@/components/checkout/upi-payment-panel";
 import { saveCheckoutDetails } from "@/app/(site)/checkout/actions";
-import { describePrints } from "@/lib/custom/pricing";
+import { describePrints, printDisplayName } from "@/lib/custom/pricing";
 import { canonicalLocation } from "@/lib/data/india-locations";
 import { formatPrice } from "@/lib/utils/format";
 import { calculateShipping } from "@/lib/utils/shipping";
@@ -70,7 +70,9 @@ function toOrderPayload(item: CartItem) {
 
 function summaryLabel(item: CartItem) {
   if (item.kind !== "custom") return `${item.name} (${item.color}/${item.size}) x${item.quantity}`;
-  const prints = describePrints((item.prints ?? []).map((p) => ({ side: p.side, name: p.printOption.name })));
+  const prints = describePrints(
+    (item.prints ?? []).map((p) => ({ side: p.side, name: printDisplayName({ kind: p.kind, rect: p.rect, name: p.printOption.name }) }))
+  );
   const details = [`${item.colorName}/${item.sizeLabel}`, item.gsmLabel, prints].filter(Boolean).join(", ");
   return `${item.name} (${details}) x${item.quantity}`;
 }

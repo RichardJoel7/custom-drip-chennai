@@ -1,24 +1,28 @@
 import type { Metadata } from "next";
 import { CustomStudio } from "@/components/custom/custom-studio";
-import { GarmentMockup } from "@/components/custom/garment-mockup";
 import { PrintPlacementGuide } from "@/components/custom/print-placement-guide";
+import { StudioHeroGarments } from "@/components/custom/studio-hero";
 import { InstagramIcon, WhatsAppIcon } from "@/components/icons/social-icons";
+import { JsonLd } from "@/components/seo/json-ld";
 import { LinkButton } from "@/components/ui/button";
-import { colorLightness, colorPhotosOf, garmentSpec, isLightColor } from "@/lib/custom/mockup";
-import { garmentFromPrice, isGarmentReady, optionsForGarment } from "@/lib/custom/pricing";
+import { studioHeroData } from "@/lib/custom/studio-hero";
+import { breadcrumbSchema, customPrintingSchema } from "@/lib/seo/schema";
+import { SHARE_IMAGE } from "@/lib/seo/site";
 import { whatsappUrl } from "@/lib/utils/contact-links";
 import { getCustomCatalog, getMyUploads, getStudioDesigns } from "@/services/custom-studio";
 import { getSettings } from "@/services/settings";
 
-const HERO_PRINTS = {
-  a4: { key: "a4", printArea: { width_cm: 21, height_cm: 29.7, front_placement: "center" as const }, label: "A4 · 21 × 29.7 cm" },
-  a3: { key: "a3", printArea: { width_cm: 29.7, height_cm: 42, front_placement: "center" as const }, label: "A3 · 29.7 × 42 cm" },
-};
-
 export const metadata: Metadata = {
-  title: "Custom Studio — Design Your Own Tee",
+  title: "Custom T-Shirt Printing in Chennai — Design Your Own Tee Online",
   description:
-    "Design your own custom T-shirt with Custom Drip Chennai. Pick a colour, add prints on the front and back, and use a design from our Design Hub or upload your own.",
+    "Design your own custom T-shirt online with Custom Drip Chennai. Place a print of any size anywhere on the front or back, add a chest print or logo, and use our designs or upload your own photo. Printed in Chennai, shipped across India.",
+  alternates: { canonical: "/customize" },
+  openGraph: {
+    title: "Custom T-Shirt Printing in Chennai — Design Your Own Tee",
+    description: "Design your own tee online — any print size, anywhere on the front or back, with your own artwork.",
+    url: "/customize",
+    images: [SHARE_IMAGE],
+  },
 };
 
 const OWN_ARTWORK_MESSAGE =
@@ -40,34 +44,27 @@ export default async function CustomizePage({ searchParams }: PageProps<"/custom
   ]);
 
   // Cheapest price across every garment that's fully set up; none set up = studio not ready.
-  const readyGarments =
-    status === "ready" ? catalog.garments.filter((g) => isGarmentReady(g, optionsForGarment(catalog, g.id))) : [];
-  const garmentPrices = readyGarments
-    .map((g) => garmentFromPrice(optionsForGarment(catalog, g.id)))
-    .filter((p): p is number => p !== null);
-  const studioReady = garmentPrices.length > 0;
-  const fromPrice = studioReady ? Math.min(...garmentPrices) : null;
+  const { fromPrice, tees } = studioHeroData(catalog, status);
+  const studioReady = fromPrice !== null;
 
   // ?garment=hoodie opens the studio on that garment (for menu and banner links).
   const garmentSlug = typeof params.garment === "string" ? params.garment : undefined;
   const initialGarmentId = catalog.garments.find((g) => g.slug === garmentSlug)?.id;
   const draft = typeof params.draft === "string" ? params.draft : undefined;
 
-  // The hero shows the first garment in a light colour (A4 on the front) and a rich dark one (A3 on
-  // the back) — not black, which would vanish into the dark hero.
-  const heroGarment = readyGarments[0];
-  const heroSpec = heroGarment ? garmentSpec(heroGarment) : null;
-  const heroColors = heroGarment ? optionsForGarment(catalog, heroGarment.id).colors : [];
-  const heroLight = heroColors.find((c) => isLightColor(c.hex)) ?? heroColors[0];
-  const heroDark =
-    heroColors.find((c) => !isLightColor(c.hex) && colorLightness(c.hex) > 0.12) ??
-    heroColors.find((c) => !isLightColor(c.hex)) ??
-    heroLight;
-
   const artworkHref = settings.whatsapp_number ? whatsappUrl(settings.whatsapp_number, OWN_ARTWORK_MESSAGE) : null;
 
   return (
     <div className="pb-24 lg:pb-0">
+      <JsonLd
+        data={[
+          customPrintingSchema(fromPrice),
+          breadcrumbSchema([
+            { name: "Home", path: "/" },
+            { name: "Custom T-Shirt Printing", path: "/customize" },
+          ]),
+        ]}
+      />
       {/* HERO */}
       <section className="relative -mt-16 overflow-hidden bg-foreground pt-16 text-background">
         <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-2 lg:py-20">
@@ -100,35 +97,14 @@ export default async function CustomizePage({ searchParams }: PageProps<"/custom
             {fromPrice !== null && (
               <p className="mt-6 text-sm text-background/60">
                 Custom tees from <span className="font-semibold text-background">₹{fromPrice.toLocaleString("en-IN")}</span>{" "}
-                · printing charges included
+                · front print included
               </p>
             )}
           </div>
 
-          {heroSpec && heroLight && heroDark && (
+          {tees && (
             <div className="relative mx-auto grid w-full max-w-lg grid-cols-2 gap-4" aria-hidden="true">
-              <div className="rounded-3xl bg-background/[0.06] p-3">
-                <GarmentMockup
-                  spec={heroSpec}
-                  colorPhotos={colorPhotosOf(heroLight)}
-                  colorHex={heroLight.hex}
-                  view="front"
-                  prints={[HERO_PRINTS.a4]}
-                  showGuide
-                  className="w-full"
-                />
-              </div>
-              <div className="translate-y-8 rounded-3xl bg-background/[0.06] p-3">
-                <GarmentMockup
-                  spec={heroSpec}
-                  colorPhotos={colorPhotosOf(heroDark)}
-                  colorHex={heroDark.hex}
-                  view="back"
-                  prints={[HERO_PRINTS.a3]}
-                  showGuide
-                  className="w-full"
-                />
-              </div>
+              <StudioHeroGarments tees={tees} />
             </div>
           )}
         </div>

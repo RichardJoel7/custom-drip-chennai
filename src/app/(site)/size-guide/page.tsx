@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Size Guide",
   description: "Find your perfect Custom Drip Chennai T-shirt size.",
+  alternates: { canonical: "/size-guide" },
 };
 
 const SIZE_CHART = [

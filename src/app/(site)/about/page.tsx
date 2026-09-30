@@ -4,7 +4,8 @@ import { getSettings } from "@/services/settings";
 
 export const metadata: Metadata = {
   title: "About",
-  description: "The story behind Custom Drip Chennai.",
+  description: "The story behind Custom Drip Chennai — a Chennai streetwear brand making original graphic tees and custom T-shirt printing.",
+  alternates: { canonical: "/about" },
 };
 
 export default async function AboutPage() {

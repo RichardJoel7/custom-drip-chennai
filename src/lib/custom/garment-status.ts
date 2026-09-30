@@ -1,5 +1,5 @@
 import { garmentSpec } from "@/lib/custom/mockup";
-import { PRINT_SIDE_LIST, optionsForGarment, sidePrice } from "@/lib/custom/pricing";
+import { optionsForGarment } from "@/lib/custom/pricing";
 import type { CustomCatalog, CustomGarment } from "@/types";
 
 /**
@@ -22,7 +22,7 @@ export function garmentChecklist(catalog: CustomCatalog, garment: CustomGarment)
     {
       key: "prints",
       label: "At least one print size offered",
-      done: options.printOptions.some((o) => o.is_active && PRINT_SIDE_LIST.some((s) => sidePrice(o, s) !== null)),
+      done: options.printOptions.some((o) => o.is_active),
     },
   ];
 }

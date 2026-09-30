@@ -32,7 +32,8 @@ export const productItemPayloadSchema = z.object({
   quantity: z.number().int().positive().max(20),
 });
 
-export const placementPayloadSchema = z.object({
+const fixedPlacementSchema = z.object({
+  kind: z.literal("fixed").optional(),
   side: z.enum(["front", "back"]),
   printOptionId: z.string().uuid(),
   designId: z.string().uuid(),
@@ -45,6 +46,21 @@ export const placementPayloadSchema = z.object({
     })
     .nullable(),
 });
+
+const customPlacementSchema = z.object({
+  kind: z.literal("custom"),
+  side: z.enum(["front", "back"]),
+  designId: z.string().uuid(),
+  designSource: z.enum(["hub", "upload"]),
+  rect: z.object({
+    x: z.number().min(-300).max(300),
+    y: z.number().min(-300).max(300),
+    w: z.number().min(2).max(200),
+    h: z.number().min(2).max(200),
+  }),
+});
+
+export const placementPayloadSchema = z.union([customPlacementSchema, fixedPlacementSchema]);
 
 export const customItemPayloadSchema = z
   .object({
@@ -60,9 +76,12 @@ export const customItemPayloadSchema = z
       .max(8, "A garment can have up to 8 prints"),
     quantity: z.number().int().positive().max(20),
   })
-  .refine((item) => new Set(item.placements.map((p) => `${p.side}:${p.printOptionId}`)).size === item.placements.length, {
-    message: "Each print size can only be used once per side",
-  });
+  .refine(
+    (item) =>
+      new Set(item.placements.map((p) => (p.kind === "custom" ? `${p.side}:custom` : `${p.side}:${p.printOptionId}`))).size ===
+      item.placements.length,
+    { message: "Each print can only be used once per side" }
+  );
 
 export const placeOrderSchema = z.object({
   ...checkoutFormSchema.shape,

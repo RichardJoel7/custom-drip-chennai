@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ProductGallery } from "@/components/products/product-gallery";
+import { JsonLd } from "@/components/seo/json-ld";
+import { breadcrumbSchema, productSchema } from "@/lib/seo/schema";
 import { ProductPurchasePanel } from "@/components/products/product-purchase-panel";
 import {
   ProductDetailsAccordion,
@@ -23,12 +25,20 @@ export async function generateMetadata({
 
   const mainImage = product.product_images.find((i) => i.is_main) ?? product.product_images[0];
 
+  const description =
+    product.description?.slice(0, 160) ??
+    `${product.name} — original graphic T-shirt by Custom Drip Chennai. Printed in Chennai, shipped across India.`;
+
   return {
     title: product.name,
-    description: product.description ?? `${product.name} — Custom Drip Chennai`,
-    openGraph: mainImage
-      ? { images: [{ url: mainImage.image_url }] }
-      : undefined,
+    description,
+    alternates: { canonical: `/product/${product.slug}` },
+    openGraph: {
+      title: product.name,
+      description,
+      url: `/product/${product.slug}`,
+      ...(mainImage ? { images: [{ url: mainImage.image_url, alt: product.name }] } : {}),
+    },
   };
 }
 
@@ -82,6 +92,16 @@ export default async function ProductPage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
+      <JsonLd
+        data={[
+          productSchema(product),
+          breadcrumbSchema([
+            { name: "Home", path: "/" },
+            { name: "Shop", path: "/shop" },
+            { name: product.name, path: `/product/${product.slug}` },
+          ]),
+        ]}
+      />
       <div className="grid gap-8 lg:grid-cols-2 lg:gap-16">
         <ProductGallery images={product.product_images} productName={product.name} />
         <div>

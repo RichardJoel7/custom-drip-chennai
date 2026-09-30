@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useCart } from "@/components/cart/cart-context";
 import { GarmentMockup } from "@/components/custom/garment-mockup";
-import { SIDE_NAMES, cartLineKey } from "@/lib/custom/pricing";
+import { SIDE_NAMES, cartLineKey, printDisplayName } from "@/lib/custom/pricing";
 import { formatPrice } from "@/lib/utils/format";
 import type { CartItem, CustomCartItem, ProductCartItem } from "@/types";
 
@@ -37,8 +37,9 @@ export function CartItemRow({ item, unitPrice }: { item: CartItem; unitPrice: nu
               {item.prints && (
                 <ul className="mt-0.5 text-xs text-muted-foreground">
                   {item.prints.map((p) => (
-                    <li key={`${p.side}:${p.printOption.id}`}>
-                      {SIDE_NAMES[p.side]} · {p.printOption.name}: {p.design.name}
+                    <li key={`${p.side}:${p.kind === "custom" ? "custom" : p.printOption.id}`}>
+                      {SIDE_NAMES[p.side]} · {printDisplayName({ kind: p.kind, rect: p.rect, name: p.printOption.name })}:{" "}
+                      {p.design.name}
                     </li>
                   ))}
                 </ul>
@@ -138,9 +139,10 @@ function CustomThumb({ item }: { item: CustomCartItem }) {
         prints={prints
           .filter((p) => p.side === view)
           .map((p) => ({
-            key: p.printOption.id,
+            key: p.kind === "custom" ? "custom" : p.printOption.id,
             printArea: p.printOption,
             transform: p.transform,
+            rectCm: p.kind === "custom" ? p.rect : null,
             designUrl: p.design.image_url,
           }))}
         imageWidth={256}

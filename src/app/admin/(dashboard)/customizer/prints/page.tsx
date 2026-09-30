@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { MigrationNotice } from "@/components/admin/migration-notice";
-import { PrintOptionsForm } from "@/components/admin/print-options-form";
+import { BackPrintPriceForm, PrintOptionsForm } from "@/components/admin/print-options-form";
 import { requireAdmin } from "@/lib/supabase/require-admin";
 import { getCustomCatalogForAdmin } from "@/services/custom-studio";
 
@@ -12,7 +12,8 @@ export default async function CustomizerPrintsPage() {
   if (status !== "ready") return <MigrationNotice file={status} />;
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-3xl space-y-8">
+      <BackPrintPriceForm price={catalog.backPrintPrice} />
       <PrintOptionsForm printOptions={catalog.printOptions} />
     </div>
   );

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { GarmentMockup } from "@/components/custom/garment-mockup";
-import { mockupFromSnapshot, printDpi, printMeasurements } from "@/lib/custom/mockup";
+import { customMeasurements, mockupFromSnapshot, printDpi, printMeasurements } from "@/lib/custom/mockup";
 import { placementsOf } from "@/lib/custom/order-item";
 import { PRINT_SIDE_LIST, SIDE_NAMES, gsmLabel } from "@/lib/custom/pricing";
 import { formatPrice } from "@/lib/utils/format";
@@ -50,6 +50,7 @@ export function CustomItemCard({ item, details }: { item: OrderItem; details: Cu
                     key: `${p.print_option.id}-${i}`,
                     printArea: p.print_option,
                     transform: p.transform,
+                    rectCm: p.kind === "custom" ? p.rect : null,
                     designUrl: p.design?.image_url,
                   }))}
                   imageWidth={384}
@@ -69,6 +70,7 @@ export function CustomItemCard({ item, details }: { item: OrderItem; details: Cu
 
 /** One print's size, where it goes, and a link to its full-size artwork. */
 function PrintSpec({ placement, spec }: { placement: PlacementSnapshot; spec: MockupSpec | null }) {
+  if (placement.kind === "custom" && placement.rect) return <CustomPrintSpec placement={placement} spec={spec} />;
   const { print_option: option, design, transform, side } = placement;
   const measured = spec ? printMeasurements(spec, side, option, transform) : null;
   const moved = measured && (Math.abs(measured.rightCm) >= 0.5 || Math.abs(measured.downCm) >= 0.5);
@@ -97,7 +99,46 @@ function PrintSpec({ placement, spec }: { placement: PlacementSnapshot; spec: Mo
           (as you look at it)
         </p>
       )}
-      {design && (
+      {design && <ArtworkLink design={design} dpi={dpi} />}
+    </div>
+  );
+}
+
+/** A custom-size print: its exact size, and where its centre and top edge go. */
+function CustomPrintSpec({ placement, spec }: { placement: PlacementSnapshot; spec: MockupSpec | null }) {
+  const rect = placement.rect!;
+  const measured = spec ? customMeasurements(spec, placement.side, rect) : null;
+  const design = placement.design;
+  const dpi = design?.source === "upload" ? printDpi(design, { width: rect.w, height: rect.h }) : null;
+
+  return (
+    <div className="border border-border p-2 text-xs">
+      <p className="font-semibold">
+        Custom size{" "}
+        <span className="font-normal text-muted-foreground">
+          · {rect.w} × {rect.h} cm
+        </span>
+      </p>
+      {measured && (
+        <p className="mt-0.5 font-semibold text-amber-700">
+          Centre{" "}
+          {measured.rightCm === 0
+            ? "on the centre line"
+            : `${Math.abs(measured.rightCm)} cm ${measured.rightCm > 0 ? "right" : "left"} of the centre line`}
+          , top edge{" "}
+          {measured.topCm === 0
+            ? "at the top of the print area"
+            : `${Math.abs(measured.topCm)} cm ${measured.topCm > 0 ? "below" : "above"} the top of the print area`}{" "}
+          (as you look at it)
+        </p>
+      )}
+      {design && <ArtworkLink design={design} dpi={dpi} />}
+    </div>
+  );
+}
+
+function ArtworkLink({ design, dpi }: { design: NonNullable<PlacementSnapshot["design"]>; dpi: number | null }) {
+  return (
         <a
           href={design.image_url}
           target="_blank"
@@ -118,7 +159,5 @@ function PrintSpec({ placement, spec }: { placement: PlacementSnapshot; spec: Mo
             </span>
           </span>
         </a>
-      )}
-    </div>
   );
 }

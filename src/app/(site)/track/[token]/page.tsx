@@ -58,6 +58,7 @@ export default async function TrackOrderPage({
                             key: `${p.print_option.id}-${i}`,
                             printArea: p.print_option,
                             transform: p.transform,
+                            rectCm: p.kind === "custom" ? p.rect : null,
                             designUrl: p.design?.image_url,
                           }))}
                         imageWidth={256}

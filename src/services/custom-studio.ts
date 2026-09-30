@@ -19,7 +19,9 @@ export type CatalogStatus =
   | "0009_custom_studio.sql"
   | "0010_gsm_and_saved_details.sql"
   | "0011_garments.sql"
-  | "0012_print_placements.sql";
+  | "0012_print_placements.sql"
+  | "0014_custom_size_prints.sql"
+  | "0015_flat_back_print_price.sql";
 
 const EMPTY_CATALOG: CustomCatalog = {
   garments: [],
@@ -28,6 +30,7 @@ const EMPTY_CATALOG: CustomCatalog = {
   gsmOptions: [],
   printOptions: [],
   garmentPrintOptionIds: {},
+  backPrintPrice: null,
 };
 const PAGE_SIZE = 1000; // PostgREST's default max rows per request
 
@@ -45,7 +48,7 @@ async function fetchCatalog(
     return query;
   };
 
-  const [garments, sizes, colors, gsmOptions, printOptions, allowed, uploads] = await Promise.all([
+  const [garments, sizes, colors, gsmOptions, printOptions, allowed, uploads, printKinds, backPrice] = await Promise.all([
     table("custom_garments"),
     table("custom_tee_sizes"),
     table("custom_tee_colors"),
@@ -54,6 +57,10 @@ async function fetchCatalog(
     supabase.from("custom_garment_print_options").select("garment_id, print_option_id"),
     // only checks the table exists (0012); RLS hides other people's uploads anyway
     supabase.from("customer_designs").select("id").limit(1),
+    // only checks the column exists (0014)
+    supabase.from("custom_print_options").select("kind").limit(1),
+    // the flat back print price (0015)
+    supabase.from("settings").select("custom_back_print_price").eq("id", 1).maybeSingle(),
   ]);
 
   if (sizes.error || printOptions.error) return { catalog: EMPTY_CATALOG, status: "0009_custom_studio.sql" };
@@ -84,9 +91,13 @@ async function fetchCatalog(
       price_both: o.price_both === null ? null : Number(o.price_both),
     })),
     garmentPrintOptionIds,
+    backPrintPrice: toNumber((backPrice.data as { custom_back_print_price?: unknown } | null)?.custom_back_print_price),
   };
-  // Before 0012 orders can't carry several prints, so the studio stays closed until it's run.
-  return { catalog, status: uploads.error ? "0012_print_placements.sql" : "ready" };
+  // Until 0012 / 0014 / 0015 run, orders can't carry these prints, so the studio stays closed.
+  if (uploads.error) return { catalog, status: "0012_print_placements.sql" };
+  if (printKinds.error) return { catalog, status: "0014_custom_size_prints.sql" };
+  if (backPrice.error) return { catalog, status: "0015_flat_back_print_price.sql" };
+  return { catalog, status: "ready" };
 }
 
 /** The live catalog; the studio only opens when status is "ready". */

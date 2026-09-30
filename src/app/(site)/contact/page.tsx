@@ -6,7 +6,8 @@ import { getSettings } from "@/services/settings";
 
 export const metadata: Metadata = {
   title: "Contact",
-  description: "Get in touch with Custom Drip Chennai.",
+  description: "Contact Custom Drip Chennai on WhatsApp, Instagram or phone for custom T-shirt printing, bulk orders and order help.",
+  alternates: { canonical: "/contact" },
 };
 
 export default async function ContactPage() {

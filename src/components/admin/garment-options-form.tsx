@@ -4,9 +4,8 @@ import { useRef, useState, type Ref } from "react";
 import type { ColorRowInput, GsmRowInput, SizeRowInput } from "@/app/admin/(dashboard)/customizer/actions";
 import { Field, Row, Section, move, newKey, toNumber } from "@/components/admin/catalog-form-parts";
 import { Input } from "@/components/ui/input";
-import { PRINT_SIDE_LIST, SIDE_NAMES, sidePrice } from "@/lib/custom/pricing";
+import { isSizeOption } from "@/lib/custom/pricing";
 import { uploadCatalogImage } from "@/lib/storage/upload-catalog-image";
-import { formatPrice } from "@/lib/utils/format";
 import type { CustomPrintOption, CustomTeeColor, CustomTeeGsm, CustomTeeSize } from "@/types";
 
 // The garment editor's list sections. They hold no state of their own: the editor keeps every
@@ -246,7 +245,7 @@ export function GarmentPrintsSection({
   return (
     <Section
       title="PRINT SIZES OFFERED"
-      description="Tick the print sizes that fit this garment. Their prices are shared — edit them under Print Prices."
+      description="Tick the print sizes that fit this garment. The biggest size ticked is the largest custom print customers can place. Front prints are included; the back print price is under Print Prices."
       invalid={invalid}
       sectionRef={sectionRef}
     >
@@ -254,11 +253,6 @@ export function GarmentPrintsSection({
         <p className="text-sm text-muted-foreground">No print sizes yet — add them under Print Prices.</p>
       )}
       {printOptions.map((o) => {
-        const prices = PRINT_SIDE_LIST.flatMap((s) => {
-          const price = sidePrice(o, s);
-          return price === null ? [] : [`${SIDE_NAMES[s]} ${formatPrice(price)}`];
-        });
-        if (o.price_both !== null) prices.push(`Front & back ${formatPrice(o.price_both)}`);
         return (
           <label key={o.id} className="flex cursor-pointer items-start gap-3 border border-border p-3 hover:border-foreground">
             <input
@@ -274,7 +268,9 @@ export function GarmentPrintsSection({
               <span className="text-muted-foreground">
                 · {o.width_cm} × {o.height_cm} cm{!o.is_active && " · hidden everywhere"}
               </span>
-              <span className="block text-xs text-muted-foreground">{prices.join(" · ")}</span>
+              <span className="block text-xs text-muted-foreground">
+                {isSizeOption(o) ? "Size: custom prints up to this size, front or back" : "Fixed print, front only"}
+              </span>
             </span>
           </label>
         );

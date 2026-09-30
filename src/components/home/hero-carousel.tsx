@@ -2,10 +2,10 @@
 
 import { getImageProps, type StaticImageData } from "next/image";
 import Link from "next/link";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 
-export interface HeroSlide {
+interface ImageSlide {
   /** Shown on tablet/desktop. */
   desktopSrc: StaticImageData;
   /** Shown on phones. Falls back to desktopSrc. */
@@ -13,6 +13,15 @@ export interface HeroSlide {
   href: string;
   label: string;
 }
+
+/** A slide built from page content instead of artwork (it fills the same box). */
+interface ContentSlide {
+  content: ReactNode;
+  href: string;
+  label: string;
+}
+
+export type HeroSlide = ImageSlide | ContentSlide;
 
 const AUTO_ADVANCE_MS = 6000;
 const HERO_QUALITY = 90;
@@ -42,7 +51,7 @@ export function HeroCarousel({
     >
       {slides.map((slide, i) => (
         <Link
-          key={slide.href}
+          key={i}
           href={slide.href}
           aria-label={slide.label}
           className={cn(
@@ -50,7 +59,7 @@ export function HeroCarousel({
             i === index ? "z-0 opacity-100" : "-z-10 opacity-0 pointer-events-none"
           )}
         >
-          <SlideImage slide={slide} eager={i === 0} />
+          {"content" in slide ? slide.content : <SlideImage slide={slide} eager={i === 0} />}
         </Link>
       ))}
 
@@ -75,7 +84,7 @@ export function HeroCarousel({
           <div className="absolute inset-x-0 bottom-4 z-20 flex justify-center gap-2 sm:bottom-6">
             {slides.map((slide, i) => (
               <button
-                key={slide.href}
+                key={i}
                 type="button"
                 aria-label={`Go to slide ${i + 1}`}
                 onClick={() => setIndex(i)}
@@ -93,7 +102,7 @@ export function HeroCarousel({
 }
 
 // Art direction via <picture>: each device downloads only its own artwork.
-function SlideImage({ slide, eager }: { slide: HeroSlide; eager: boolean }) {
+function SlideImage({ slide, eager }: { slide: ImageSlide; eager: boolean }) {
   const common = {
     alt: "",
     fill: true,

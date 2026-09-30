@@ -12,7 +12,14 @@ import { Button } from "@/components/ui/button";
 import {
   MIN_PRINT_SCALE,
   colorPhotosOf,
+  customPrintRect,
+  customRectFrom,
+  defaultCustomRect,
+  fitRectToAspect,
   garmentSpec,
+  keepOnPhoto,
+  maxCustomWidthOnPhoto,
+  optimizedImage,
   printDpi,
   printMeasurements,
   printRect,
@@ -22,20 +29,28 @@ import {
 import {
   MAX_CUSTOM_QUANTITY,
   MAX_PRINTS,
+  MIN_CUSTOM_CM,
   PRINT_SIDE_LIST,
   SIDE_NAMES,
   customCartKey,
+  fixedPrints,
   garmentFromPrice,
   gsmLabel,
   isGarmentReady,
+  isSizeOption,
+  isOffered,
   optionsForGarment,
-  printCharges,
-  sidePrice,
+  placementsValid,
+  printsPrice,
+  sizeTiers,
+  customPrintSummary,
+  offersCustomPrints,
 } from "@/lib/custom/pricing";
 import { decodeStudioDraft, encodeStudioDraft, type StudioDraft } from "@/lib/custom/studio-draft";
 import { cn } from "@/lib/utils/cn";
 import { formatPrice } from "@/lib/utils/format";
 import type {
+  CmRect,
   CustomCartItem,
   CustomCatalog,
   CustomGarment,
@@ -43,6 +58,7 @@ import type {
   CustomTeeSize,
   GarmentGender,
   MockupSpec,
+  PlacementConfig,
   PrintSide,
   PrintTransform,
   StudioDesign,
@@ -50,19 +66,64 @@ import type {
 
 type GenderFilter = "all" | Exclude<GarmentGender, "unisex">;
 
-/** One print the customer has picked: a print size on a side, its design, and where it sits. */
+/**
+ * One print the customer has picked. A "custom" print is any size, anywhere (its own box in
+ * cm, priced by the smallest print size it fits in); a "fixed" print is a set print like the
+ * chest print or logo, which can be nudged and shrunk within the print area.
+ */
 interface StudioPrint {
   side: PrintSide;
-  printOptionId: string;
+  kind: "fixed" | "custom";
+  /** Fixed prints only. */
+  printOptionId: string | null;
   design: StudioDesign | null;
+  /** Fixed prints only. */
   transform: PrintTransform | null;
+  /** Custom prints only. */
+  rect: CmRect | null;
+  /** The design's width ÷ height, once known, so a custom box keeps the artwork's shape. */
+  designAspect: number | null;
 }
 
 // Below this many dots per inch an upload starts to look soft once printed.
 const LOW_DPI = 100;
 
-const printKey = (p: Pick<StudioPrint, "side" | "printOptionId">) => `${p.side}:${p.printOptionId}`;
+const printKey = (p: Pick<StudioPrint, "side" | "kind" | "printOptionId">) =>
+  p.kind === "custom" ? `${p.side}:custom` : `${p.side}:${p.printOptionId}`;
 const sideOfKey = (key: string) => key.split(":")[0] as PrintSide;
+
+const blankPrint = { design: null, transform: null, rect: null, designAspect: null, printOptionId: null };
+
+/** A custom print's corner-handle range in cm, for its shape: 3 cm up to as big as the whole photo. */
+function customWidthLimits(rect: CmRect, spec: MockupSpec | null, side: PrintSide) {
+  const aspect = rect.w / rect.h;
+  const min = Math.max(MIN_CUSTOM_CM, MIN_CUSTOM_CM * aspect);
+  const max = spec ? maxCustomWidthOnPhoto(spec, side, aspect) : 200;
+  return { min, max: Math.max(min, max) };
+}
+
+/** A new custom print on a side: the smallest print size, on the print area. Null if none is offered. */
+function newCustomPrint(spec: MockupSpec | null, side: PrintSide, printOptions: CustomPrintOption[]): StudioPrint | null {
+  const smallest = sizeTiers(printOptions)[0];
+  if (!smallest) return null;
+  const size = { w: smallest.width_cm, h: smallest.height_cm };
+  const rect = spec ? defaultCustomRect(spec, side, size) : { x: 0, y: 0, ...size };
+  return { ...blankPrint, side, kind: "custom", rect };
+}
+
+/** Width ÷ height of an image, read from the browser once it loads (null if it can't). */
+function loadAspect(url: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => resolve(img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : null);
+    img.onerror = () => resolve(null);
+    img.src = optimizedImage(url, 384);
+  });
+}
+
+function designAspectOf(design: StudioDesign) {
+  return design.width && design.height ? design.width / design.height : null;
+}
 
 function formatCm(option: Pick<CustomPrintOption, "width_cm" | "height_cm">) {
   return `${option.width_cm} × ${option.height_cm} cm`;
@@ -79,20 +140,32 @@ function scrollToPreview(ref: RefObject<HTMLDivElement | null>) {
   }
 }
 
-/** The studio starts on one print: the first print size offered on the front (else the back). */
-function firstPrint(printOptions: CustomPrintOption[]): StudioPrint[] {
-  for (const side of PRINT_SIDE_LIST) {
-    const option = printOptions.find((o) => sidePrice(o, side) !== null);
-    if (option) return [{ side, printOptionId: option.id, design: null, transform: null }];
-  }
-  return [];
+/** The studio starts on one print: a custom print on the front (else a fixed front print, else the back). */
+function firstPrint(spec: MockupSpec | null, printOptions: CustomPrintOption[]): StudioPrint[] {
+  const front = newCustomPrint(spec, "front", printOptions);
+  if (front) return [front];
+  const fixed = fixedPrints(printOptions)[0];
+  if (fixed) return [{ ...blankPrint, side: "front", kind: "fixed", printOptionId: fixed.id }];
+  const back = newCustomPrint(spec, "back", printOptions);
+  return back ? [back] : [];
 }
 
-/** Front before back, then in the admin's print-size order. */
+/** Front before back; the custom print first, then fixed prints in the admin's order. */
 function sortPrints(prints: StudioPrint[], printOptions: CustomPrintOption[]) {
   const order = (p: StudioPrint) =>
-    PRINT_SIDE_LIST.indexOf(p.side) * 1000 + printOptions.findIndex((o) => o.id === p.printOptionId);
+    PRINT_SIDE_LIST.indexOf(p.side) * 1000 + (p.kind === "custom" ? -1 : printOptions.findIndex((o) => o.id === p.printOptionId));
   return [...prints].sort((a, b) => order(a) - order(b));
+}
+
+/** Whether a print can still be made on this garment. */
+function stillOffered(p: StudioPrint, printOptions: CustomPrintOption[]) {
+  if (p.kind === "custom") return !!p.rect && offersCustomPrints(printOptions);
+  const option = printOptions.find((o) => o.id === p.printOptionId);
+  return !!option && !isSizeOption(option) && isOffered(option, p.side);
+}
+
+function toPlacement(p: StudioPrint) {
+  return { side: p.side, kind: p.kind, printOptionId: p.printOptionId, rect: p.rect };
 }
 
 function initialState({
@@ -113,12 +186,13 @@ function initialState({
   const draftGarment = draft ? garments.find((g) => g.id === draft.garmentId) : undefined;
   const garment = draftGarment ?? garments.find((g) => g.id === initialGarmentId) ?? garments[0];
   const options = optionsForGarment(catalog, garment?.id);
+  const spec = garment ? garmentSpec(garment) : null;
   const base = {
     garmentId: garment?.id,
     colorId: options.colors[0]?.id ?? "",
     sizeId: defaultSizeId(options.sizes),
     gsmId: options.gsmOptions[0]?.id ?? null,
-    prints: firstPrint(options.printOptions),
+    prints: firstPrint(spec, options.printOptions),
     quantity: 1,
     choosingFor: null as string | null,
   };
@@ -128,13 +202,19 @@ function initialState({
   const findDesign = (id: string | null, source: StudioDraft["prints"][number]["designSource"]) =>
     (source === "upload" ? uploads : designs).find((d) => d.id === id) ?? null;
   const prints = draft.prints
-    .filter((p) => options.printOptions.some((o) => o.id === p.printOptionId && sidePrice(o, p.side) !== null))
-    .map((p) => ({
-      side: p.side,
-      printOptionId: p.printOptionId,
-      design: findDesign(p.designId, p.designSource),
-      transform: p.transform,
-    }));
+    .map((p): StudioPrint => {
+      const design = findDesign(p.designId, p.designSource);
+      return {
+        side: p.side,
+        kind: p.kind,
+        printOptionId: p.kind === "fixed" ? p.printOptionId : null,
+        design,
+        transform: p.kind === "fixed" ? p.transform : null,
+        rect: p.kind === "custom" && p.rect && spec ? keepOnPhoto(spec, p.side, p.rect) : p.rect,
+        designAspect: design ? designAspectOf(design) : null,
+      };
+    })
+    .filter((p) => stillOffered(p, options.printOptions));
   return {
     garmentId: draftGarment.id,
     colorId: options.colors.some((c) => c.id === draft.colorId) ? draft.colorId : base.colorId,
@@ -227,12 +307,20 @@ export function CustomStudio({
   const color = colors.find((c) => c.id === colorId) ?? colors[0];
   const size = sizes.find((s) => s.id === sizeId) ?? sizes[0];
   const gsm = gsmOptions.find((g) => g.id === gsmId) ?? null;
-  const optionOf = useCallback((id: string) => printOptions.find((o) => o.id === id), [printOptions]);
+  const optionOf = useCallback(
+    (id: string | null) => (id ? printOptions.find((o) => o.id === id) : undefined),
+    [printOptions]
+  );
+  const frontFixed = useMemo(() => fixedPrints(printOptions), [printOptions]);
 
   // No GSM choice offered = nothing extra to pay; offered but none picked = no price yet.
   const gsmPrice = gsmOptions.length === 0 ? 0 : gsm ? gsm.price : null;
-  const charges = useMemo(() => printCharges(prints, printOptions), [prints, printOptions]);
-  const printPrice = charges && prints.length > 0 ? charges.reduce((sum, c) => sum + c.price, 0) : null;
+  // Front prints are included in the garment price; any back print is one flat price.
+  const backPrintPrice = catalog.backPrintPrice;
+  const printsOk = useMemo(() => placementsValid(prints.map(toPlacement), printOptions), [prints, printOptions]);
+  const frontCount = prints.filter((p) => p.side === "front").length;
+  const hasBackPrint = prints.some((p) => p.side === "back");
+  const printPrice = prints.length > 0 && printsOk ? printsPrice(prints, backPrintPrice) : null;
   const unitPrice = size && gsmPrice !== null && printPrice !== null ? size.price + gsmPrice + printPrice : null;
   const total = unitPrice === null ? null : unitPrice * quantity;
   const sizePricesVary = new Set(sizes.map((s) => s.price)).size > 1;
@@ -247,17 +335,26 @@ export function CustomStudio({
     return list;
   }, [gsmOptions.length, gsm, prints]);
 
+  /** Where a print is drawn on its side, in viewBox units. */
+  const rectOf = useCallback(
+    (p: StudioPrint) => {
+      if (!spec) return null;
+      if (p.kind === "custom") return p.rect ? customPrintRect(spec, p.side, p.rect) : null;
+      const option = optionOf(p.printOptionId);
+      return option ? printRect(spec, p.side, option, p.transform) : null;
+    },
+    [spec, optionOf]
+  );
+
   // Prints placed on top of each other, by side, so the customer can be told to move them.
-  const overlappingSides = useMemo(() => {
-    if (!spec) return [];
-    return PRINT_SIDE_LIST.filter((side) => {
-      const rects = prints.flatMap((p) => {
-        const option = p.side === side ? optionOf(p.printOptionId) : undefined;
-        return option ? [printRect(spec, side, option, p.transform)] : [];
-      });
-      return rects.some((a, i) => rects.slice(i + 1).some((b) => rectsOverlap(a, b)));
-    });
-  }, [spec, prints, optionOf]);
+  const overlappingSides = useMemo(
+    () =>
+      PRINT_SIDE_LIST.filter((side) => {
+        const rects = prints.filter((p) => p.side === side).flatMap((p) => rectOf(p) ?? []);
+        return rects.some((a, i) => rects.slice(i + 1).some((b) => rectsOverlap(a, b)));
+      }),
+    [prints, rectOf]
+  );
 
 
   function changeView(side: PrintSide) {
@@ -269,12 +366,14 @@ export function CustomStudio({
   function chooseGarment(next: CustomGarment) {
     if (next.id === garment?.id) return;
     const options = optionsForGarment(catalog, next.id);
+    const nextSpec = garmentSpec(next);
     const sameColor = options.colors.find((c) => c.name.toLowerCase() === color?.name.toLowerCase());
     const sameSize = options.sizes.find((s) => s.label.toUpperCase() === size?.label.toUpperCase());
-    const kept = prints.filter((p) =>
-      options.printOptions.some((o) => o.id === p.printOptionId && sidePrice(o, p.side) !== null)
-    );
-    const nextPrints = kept.length > 0 ? kept : firstPrint(options.printOptions);
+    // Custom boxes stay the same size in cm, kept on the new garment's photo.
+    const kept = prints
+      .map((p) => (p.kind === "custom" && p.rect && nextSpec ? { ...p, rect: keepOnPhoto(nextSpec, p.side, p.rect) } : p))
+      .filter((p) => stillOffered(p, options.printOptions));
+    const nextPrints = kept.length > 0 ? kept : firstPrint(nextSpec, options.printOptions);
 
     setGarmentId(next.id);
     setColorId((sameColor ?? options.colors[0])?.id ?? "");
@@ -285,16 +384,26 @@ export function CustomStudio({
     if (!nextPrints.some((p) => p.side === view)) setView(nextPrints[0]?.side ?? "front");
   }
 
-  function togglePrint(side: PrintSide, option: CustomPrintOption) {
-    const key = printKey({ side, printOptionId: option.id });
+  /** Adds or removes a print: the custom print on a side (option = null), or a fixed print. */
+  function togglePrint(side: PrintSide, option: CustomPrintOption | null) {
+    const key = option ? printKey({ side, kind: "fixed", printOptionId: option.id }) : printKey({ side, kind: "custom", printOptionId: null });
     if (prints.some((p) => printKey(p) === key)) {
       setPrints(prints.filter((p) => printKey(p) !== key));
       if (activeKey === key) setActiveKey(null);
       return;
     }
     if (prints.length >= MAX_PRINTS) return;
-    setPrints(sortPrints([...prints, { side, printOptionId: option.id, design: null, transform: null }], printOptions));
+    const added: StudioPrint | null = option
+      ? { ...blankPrint, side, kind: "fixed", printOptionId: option.id }
+      : newCustomPrint(spec, side, printOptions);
+    if (!added) return;
+    setPrints(sortPrints([...prints, added], printOptions));
     changeView(side);
+    // A new custom print is ready to drag straight away.
+    if (!option) {
+      setActiveKey(key);
+      scrollToPreview(previewRef);
+    }
   }
 
   const updatePrint = useCallback((key: string, patch: Partial<StudioPrint>) => {
@@ -311,22 +420,54 @@ export function CustomStudio({
     () => ({
       activeKey,
       onSelect: (key) => setActiveKey(key),
-      onChange: (key, transform) => updatePrint(key, { transform }),
+      // Keep what the customer dragged in bounds: a custom box on the photo and within the
+      // biggest print size; a fixed print within its print area and size.
+      onChange: (key, target) =>
+        setPrints((list) =>
+          list.map((p) => {
+            if (printKey(p) !== key || !spec) return p;
+            if (p.kind === "custom" && p.rect) {
+              const limits = customWidthLimits(p.rect, spec, p.side);
+              return { ...p, rect: customRectFrom(spec, p.side, target, { minW: limits.min, maxW: limits.max }) };
+            }
+            const option = printOptions.find((o) => o.id === p.printOptionId);
+            return option ? { ...p, transform: transformFor(spec, p.side, option, target) } : p;
+          })
+        ),
     }),
-    [activeKey, updatePrint]
+    [activeKey, spec, printOptions]
   );
 
   const closeHub = useCallback(() => setHub(null), []);
 
+  /** Puts a design on a print; a custom box then takes the artwork's shape (inside the old box). */
+  const applyDesign = useCallback(
+    (key: string, design: StudioDesign) => {
+      const reshape = (aspect: number | null) =>
+        setPrints((list) =>
+          list.map((p) => {
+            if (printKey(p) !== key || p.design?.id !== design.id) return p;
+            const rect = p.kind === "custom" && p.rect && spec && aspect ? fitRectToAspect(spec, p.side, p.rect, aspect) : p.rect;
+            return { ...p, rect, designAspect: aspect };
+          })
+        );
+      updatePrint(key, { design, designAspect: null });
+      const known = designAspectOf(design);
+      if (known) reshape(known);
+      else loadAspect(design.image_url).then(reshape);
+    },
+    [spec, updatePrint]
+  );
+
   const pickDesign = useCallback(
     (design: StudioDesign) => {
       if (!hub) return;
-      updatePrint(hub.key, { design });
+      applyDesign(hub.key, design);
       setView(sideOfKey(hub.key));
       setHub(null);
       scrollToPreview(previewRef);
     },
-    [hub, updatePrint]
+    [hub, applyDesign]
   );
 
   const addUpload = useCallback((design: StudioDesign) => {
@@ -344,10 +485,12 @@ export function CustomStudio({
       quantity,
       prints: prints.map((p) => ({
         side: p.side,
+        kind: p.kind,
         printOptionId: p.printOptionId,
         designId: p.design?.id ?? null,
         designSource: p.design ? p.design.source ?? "hub" : null,
         transform: p.transform,
+        rect: p.rect,
       })),
       choosingFor: hub?.key ?? null,
     });
@@ -357,8 +500,9 @@ export function CustomStudio({
 
   function buildCartItem(): CustomCartItem | null {
     if (missing.length > 0 || !garment || !color || !size || unitPrice === null) return null;
+    // Each print with the print size it's charged as (a custom print's size by its box).
     const placed = prints.flatMap((p) => {
-      const option = optionOf(p.printOptionId);
+      const option = p.kind === "custom" ? (p.rect ? customPrintSummary(p.rect) : null) : optionOf(p.printOptionId);
       return option && p.design ? [{ print: p, option, design: p.design }] : [];
     });
     if (placed.length !== prints.length) return null;
@@ -368,13 +512,19 @@ export function CustomStudio({
       colorId: color.id,
       sizeId: size.id,
       gsmId: gsm?.id ?? null,
-      placements: placed.map(({ print, design }) => ({
-        side: print.side,
-        printOptionId: print.printOptionId,
-        designId: design.id,
-        designSource: design.source ?? "hub",
-        transform: print.transform,
-      })),
+      placements: placed.map(({ print, design }): PlacementConfig => {
+        const source = design.source ?? "hub";
+        return print.kind === "custom" && print.rect
+          ? { kind: "custom", side: print.side, rect: print.rect, designId: design.id, designSource: source }
+          : {
+              kind: "fixed",
+              side: print.side,
+              printOptionId: print.printOptionId ?? "",
+              designId: design.id,
+              designSource: source,
+              transform: print.transform,
+            };
+      }),
     };
     return {
       kind: "custom",
@@ -388,6 +538,8 @@ export function CustomStudio({
       gsmLabel: gsm ? gsmLabel(gsm.gsm) : null,
       prints: placed.map(({ print, option, design }) => ({
         side: print.side,
+        kind: print.kind,
+        rect: print.rect,
         printOption: {
           id: option.id,
           name: option.name,
@@ -426,8 +578,22 @@ export function CustomStudio({
   const nextStep = () => String(++stepCount).padStart(2, "0");
 
   const mockupPrints = (side: PrintSide): MockupPrint[] =>
-    prints.flatMap((p) => {
-      const option = p.side === side ? optionOf(p.printOptionId) : undefined;
+    prints.flatMap((p): MockupPrint[] => {
+      if (p.side !== side) return [];
+      if (p.kind === "custom") {
+        if (!p.rect) return [];
+        return [
+          {
+            key: printKey(p),
+            printArea: { width_cm: p.rect.w, height_cm: p.rect.h, front_placement: "center" },
+            rectCm: p.rect,
+            widthLimitsCm: customWidthLimits(p.rect, spec, side),
+            designUrl: p.design?.image_url,
+            label: `Custom · ${p.rect.w} × ${p.rect.h} cm`,
+          },
+        ];
+      }
+      const option = optionOf(p.printOptionId);
       if (!option) return [];
       const measured = spec && p.transform ? printMeasurements(spec, side, option, p.transform) : null;
       return [
@@ -459,6 +625,7 @@ export function CustomStudio({
   const activePrint = prints.find((p) => printKey(p) === activeKey);
   const activeOption = activePrint ? optionOf(activePrint.printOptionId) : undefined;
   const hubPrint = hub ? prints.find((p) => printKey(p) === hub.key) : undefined;
+  const printName = (p: StudioPrint) => (p.kind === "custom" ? "Custom size" : optionOf(p.printOptionId)?.name ?? "Print");
 
   return (
     <>
@@ -503,23 +670,35 @@ export function CustomStudio({
               </button>
             </div>
 
+            {/* Both sides share one grid cell, so the preview is as tall as the taller photo (a back
+                photo can be longer than the front) and never spills over what's below it. */}
             <div className="mx-auto mt-2 max-w-xl perspective-[1600px]">
               <div
                 className={cn(
-                  "relative transition-transform duration-700 ease-[cubic-bezier(0.2,0.7,0.2,1)] transform-3d",
+                  "grid transition-transform duration-700 ease-[cubic-bezier(0.2,0.7,0.2,1)] transform-3d",
                   view === "back" && "rotate-y-180"
                 )}
               >
-                <div className={cn("backface-hidden", view !== "front" && "pointer-events-none")}>
+                <div className={cn("backface-hidden [grid-area:1/1]", view !== "front" && "pointer-events-none")}>
                   {mockupFor("front", { editable: view === "front" })}
                 </div>
-                <div className={cn("absolute inset-0 rotate-y-180 backface-hidden", view !== "back" && "pointer-events-none")}>
+                <div className={cn("rotate-y-180 backface-hidden [grid-area:1/1]", view !== "back" && "pointer-events-none")}>
                   {mockupFor("back", { editable: view === "back" })}
                 </div>
               </div>
             </div>
 
-            {activePrint && activeOption && spec ? (
+            {activePrint && spec && activePrint.kind === "custom" && activePrint.rect ? (
+              <CustomAdjustBar
+                spec={spec}
+                print={activePrint}
+                rect={activePrint.rect}
+                printOptions={printOptions}
+                price={activePrint.side === "front" ? 0 : backPrintPrice}
+                onChange={(rect) => updatePrint(printKey(activePrint), { rect })}
+                onDone={() => setActiveKey(null)}
+              />
+            ) : activePrint && activeOption && spec ? (
               <AdjustBar
                 spec={spec}
                 print={activePrint}
@@ -647,57 +826,65 @@ export function CustomStudio({
             invalid={attempted && prints.length === 0}
           >
             <p className="-mt-1 mb-4 text-sm text-muted-foreground">
-              Pick as many as you like on each side — say a chest print and a logo on the front, and A3 on the back.
+              Front prints are included in the price — place a custom-size print anywhere, and add a chest print or
+              logo.{" "}
+              {backPrintPrice !== null && <>A back print of any size is +{formatPrice(backPrintPrice)}.</>}
             </p>
             <div className="space-y-5">
-              {PRINT_SIDE_LIST.map((side) => (
-                <div key={side}>
-                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
-                    <SideGlyph side={side} />
-                    {SIDE_NAMES[side]}
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {printOptions.map((o) => {
-                      const price = sidePrice(o, side);
-                      const selected = prints.some((p) => p.side === side && p.printOptionId === o.id);
-                      return (
-                        <button
-                          key={o.id}
-                          type="button"
-                          role="checkbox"
-                          aria-checked={selected}
-                          disabled={price === null || (!selected && prints.length >= MAX_PRINTS)}
-                          onClick={() => togglePrint(side, o)}
-                          className={cn(
-                            "flex items-start gap-2.5 rounded-2xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40 sm:p-4",
-                            selected ? "border-foreground ring-1 ring-foreground" : "border-border hover:border-foreground"
-                          )}
-                        >
-                          <CheckMark checked={selected} />
-                          <span className="min-w-0 flex-1">
-                            <span className="flex flex-wrap items-baseline justify-between gap-x-2">
-                              <span className="font-semibold leading-tight">{o.name}</span>
-                              <span className="text-sm font-bold">{price === null ? "—" : `+${formatPrice(price)}`}</span>
-                            </span>
-                            <span className="mt-0.5 block text-xs font-semibold text-muted-foreground">{formatCm(o)}</span>
-                            <span className={cn("mt-0.5 text-xs text-muted-foreground", price === null ? "block" : "hidden sm:block")}>
-                              {price === null ? `Not on the ${side}` : o.description}
-                            </span>
-                          </span>
-                        </button>
-                      );
-                    })}
+              {PRINT_SIDE_LIST.map((side) => {
+                const custom = prints.find((p) => p.side === side && p.kind === "custom");
+                return (
+                  <div key={side}>
+                    <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+                      <SideGlyph side={side} />
+                      {SIDE_NAMES[side]}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <CustomSizeCard
+                        tiers={sizeTiers(printOptions)}
+                        side={side}
+                        price={side === "front" ? 0 : backPrintPrice}
+                        rect={custom?.rect ?? null}
+                        selected={!!custom}
+                        disabled={!custom && prints.length >= MAX_PRINTS}
+                        onToggle={() => togglePrint(side, null)}
+                        onAdjust={() => custom && startAdjusting(printKey(custom))}
+                      />
+                      {side === "front" &&
+                        frontFixed.map((o) => {
+                          const selected = prints.some((p) => p.kind === "fixed" && p.side === side && p.printOptionId === o.id);
+                          return (
+                            <button
+                              key={o.id}
+                              type="button"
+                              role="checkbox"
+                              aria-checked={selected}
+                              disabled={!selected && prints.length >= MAX_PRINTS}
+                              onClick={() => togglePrint(side, o)}
+                              className={cn(
+                                "flex items-start gap-2.5 rounded-2xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40 sm:p-4",
+                                selected ? "border-foreground ring-1 ring-foreground" : "border-border hover:border-foreground"
+                              )}
+                            >
+                              <CheckMark checked={selected} />
+                              <span className="min-w-0 flex-1">
+                                <span className="flex flex-wrap items-baseline justify-between gap-x-2">
+                                  <span className="font-semibold leading-tight">{o.name}</span>
+                                  <span className="text-sm font-bold">Included</span>
+                                </span>
+                                <span className="mt-0.5 block text-xs font-semibold text-muted-foreground">{formatCm(o)}</span>
+                                {o.description && (
+                                  <span className="mt-0.5 hidden text-xs text-muted-foreground sm:block">{o.description}</span>
+                                )}
+                              </span>
+                            </button>
+                          );
+                        })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-            {charges
-              ?.filter((c) => c.fullPrice !== undefined)
-              .map((c) => (
-                <p key={c.option.id} className="mt-3 text-sm font-semibold text-success">
-                  {c.option.name} on both sides: {formatPrice(c.price)} instead of {formatPrice(c.fullPrice ?? 0)}
-                </p>
-              ))}
           </Step>
 
           <Step
@@ -712,9 +899,14 @@ export function CustomStudio({
               <div className="space-y-3">
                 {prints.map((p) => {
                   const key = printKey(p);
-                  const option = optionOf(p.printOptionId);
-                  if (!option) return null;
-                  const measured = spec ? printMeasurements(spec, p.side, option, p.transform) : null;
+                  const option = p.kind === "fixed" ? optionOf(p.printOptionId) : undefined;
+                  if (p.kind === "fixed" && !option) return null;
+                  const measured =
+                    p.kind === "custom" && p.rect
+                      ? { widthCm: p.rect.w, heightCm: p.rect.h }
+                      : spec && option
+                        ? printMeasurements(spec, p.side, option, p.transform)
+                        : null;
                   const dpi =
                     p.design?.source === "upload" && measured
                       ? printDpi(p.design, { width: measured.widthCm, height: measured.heightCm })
@@ -723,16 +915,16 @@ export function CustomStudio({
                   return (
                     <DesignSlot
                       key={key}
-                      label={`${SIDE_NAMES[p.side]} · ${option.name}`}
+                      label={`${SIDE_NAMES[p.side]} · ${printName(p)}`}
                       design={p.design}
-                      adjusted={!!p.transform}
+                      adjusted={p.kind === "fixed" && !!p.transform}
                       lowResolution={dpi !== null && dpi < LOW_DPI}
                       suggestion={suggestion}
                       onBrowse={() => setHub({ key, tab: p.design?.source === "upload" ? "uploads" : "hub" })}
                       onUpload={() => setHub({ key, tab: "uploads" })}
                       onUseSuggestion={() => {
                         if (!suggestion) return;
-                        updatePrint(key, { design: suggestion });
+                        applyDesign(key, suggestion);
                         setView(p.side);
                       }}
                       onRemove={() => updatePrint(key, { design: null })}
@@ -821,17 +1013,11 @@ export function CustomStudio({
                   value={!gsm ? "—" : gsm.price > 0 ? formatPrice(gsm.price) : "Included"}
                 />
               )}
-              {charges && charges.length > 0 ? (
-                charges.map((c) => (
-                  <SummaryRow
-                    key={c.option.id}
-                    label={`${c.option.name} · ${c.sides.map((s) => SIDE_NAMES[s].toLowerCase()).join(" & ")}`}
-                    value={formatPrice(c.price)}
-                  />
-                ))
-              ) : (
-                <SummaryRow label="Print" value="—" />
+              {frontCount > 0 && <SummaryRow label={frontCount > 1 ? `Front prints · ${frontCount}` : "Front print"} value="Included" />}
+              {hasBackPrint && (
+                <SummaryRow label="Back print" value={backPrintPrice === null ? "—" : formatPrice(backPrintPrice)} />
               )}
+              {prints.length === 0 && <SummaryRow label="Print" value="—" />}
               <SummaryRow label="Each" value={unitPrice === null ? "—" : formatPrice(unitPrice)} />
               <SummaryRow label="Quantity" value={`× ${quantity}`} />
             </div>
@@ -867,7 +1053,7 @@ export function CustomStudio({
             )}
 
             <ul className="mt-5 grid gap-1.5 text-xs text-background/70 sm:grid-cols-3">
-              <li>✓ Printing charges included</li>
+              <li>✓ Front print included</li>
               <li>✓ Printed on order in Chennai</li>
               <li>✓ Ships in 3–7 business days</li>
             </ul>
@@ -905,7 +1091,7 @@ export function CustomStudio({
         <DesignHubDialog
           designs={designs}
           uploads={uploads}
-          slotLabel={`${SIDE_NAMES[hubPrint.side].toLowerCase()} · ${optionOf(hubPrint.printOptionId)?.name ?? "print"}`}
+          slotLabel={`${SIDE_NAMES[hubPrint.side].toLowerCase()} · ${printName(hubPrint)}`}
           selectedId={hubPrint.design?.id ?? null}
           initialTab={hub.tab}
           userId={user?.id ?? null}
@@ -916,6 +1102,159 @@ export function CustomStudio({
         />
       )}
     </>
+  );
+}
+
+/** "Included" for 0, "+₹199", or "—" when there's no price. */
+function priceLabel(price: number | null) {
+  return price === null ? "—" : price === 0 ? "Included" : `+${formatPrice(price)}`;
+}
+
+/** The two-column "Custom size" choice: any size up to the biggest size, anywhere on the side. */
+function CustomSizeCard({
+  tiers,
+  side,
+  price,
+  rect,
+  selected,
+  disabled,
+  onToggle,
+  onAdjust,
+}: {
+  tiers: CustomPrintOption[];
+  side: PrintSide;
+  /** 0 on the front (included), the back print price on the back. */
+  price: number | null;
+  rect: CmRect | null;
+  selected: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+  onAdjust: () => void;
+}) {
+  const available = tiers.length > 0 && price !== null;
+
+  return (
+    <div
+      className={cn(
+        "col-span-2 rounded-2xl border transition-colors",
+        selected ? "border-foreground ring-1 ring-foreground" : "border-border",
+        !available && "opacity-40"
+      )}
+    >
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={selected}
+        disabled={!available || disabled}
+        onClick={onToggle}
+        className="flex w-full items-start gap-2.5 p-3 text-left disabled:cursor-not-allowed sm:p-4"
+      >
+        <CheckMark checked={selected} />
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-baseline justify-between gap-x-2">
+            <span className="font-semibold leading-tight">Custom size</span>
+            <span className="text-sm font-bold">{available ? priceLabel(price) : "—"}</span>
+          </span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            {!available
+              ? `Not available on the ${side}`
+              : `Any size, anywhere on the ${side} — drag and resize it on the preview${
+                  side === "back" ? ". Same price for every size" : ""
+                }.`}
+          </span>
+        </span>
+      </button>
+      {selected && rect && (
+        <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2 text-xs sm:px-4">
+          <span>
+            Your print: <span className="font-semibold">{rect.w} × {rect.h} cm</span>
+          </span>
+          <button type="button" onClick={onAdjust} className="font-semibold uppercase tracking-wide underline underline-offset-4">
+            Move / resize
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Under the preview while a custom print is being adjusted: its size and price, a slider, reset and done. */
+function CustomAdjustBar({
+  spec,
+  print,
+  rect,
+  printOptions,
+  price,
+  onChange,
+  onDone,
+}: {
+  spec: MockupSpec;
+  print: StudioPrint;
+  rect: CmRect;
+  printOptions: CustomPrintOption[];
+  /** 0 on the front (included), the back print price on the back. */
+  price: number | null;
+  onChange: (rect: CmRect) => void;
+  onDone: () => void;
+}) {
+  const limits = customWidthLimits(rect, spec, print.side);
+
+  function resize(width: number) {
+    // Resize around the box's centre, keeping its shape.
+    const w = Math.min(Math.max(width, limits.min), limits.max);
+    const h = w / (rect.w / rect.h);
+    onChange(keepOnPhoto(spec, print.side, { x: rect.x + (rect.w - w) / 2, y: rect.y + (rect.h - h) / 2, w, h }));
+  }
+
+  function reset() {
+    const fresh = newCustomPrint(spec, print.side, printOptions)?.rect;
+    if (!fresh) return;
+    onChange(print.designAspect ? fitRectToAspect(spec, print.side, fresh, print.designAspect) : fresh);
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl border border-border bg-background p-3 sm:p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="min-w-0 truncate text-sm font-semibold">
+          {SIDE_NAMES[print.side]} · Custom{" "}
+          <span className="font-normal text-muted-foreground">
+            {rect.w} × {rect.h} cm · {price === 0 ? "included" : price === null ? "—" : formatPrice(price)}
+          </span>
+        </p>
+        <button
+          type="button"
+          onClick={onDone}
+          className="h-9 flex-none rounded-full bg-foreground px-4 text-xs font-semibold uppercase tracking-wide text-background"
+        >
+          Done
+        </button>
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <label htmlFor="custom-print-width" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Width
+        </label>
+        <input
+          id="custom-print-width"
+          type="range"
+          min={Math.ceil(limits.min * 2) / 2}
+          max={Math.floor(limits.max * 2) / 2}
+          step={0.5}
+          value={rect.w}
+          onChange={(e) => resize(Number(e.target.value))}
+          className="flex-1 accent-foreground"
+        />
+        <span className="w-16 text-right text-sm font-semibold">{rect.w} cm</span>
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+        <span>
+          Drag it anywhere — even past the edges — or pull the corner dot to make it any size. Parts off the
+          garment won&apos;t print.
+        </span>
+        <button type="button" onClick={reset} className="flex-none font-semibold text-foreground underline underline-offset-4">
+          Reset
+        </button>
+      </div>
+    </div>
   );
 }
 

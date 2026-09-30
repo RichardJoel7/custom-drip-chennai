@@ -70,13 +70,18 @@ export async function POST(request: Request) {
             size_id: item.sizeId,
             color_id: item.colorId,
             gsm_id: item.gsmId ?? null,
-            placements: item.placements.map((p) => ({
-              side: p.side,
-              print_option_id: p.printOptionId,
-              design_id: p.designId,
-              design_source: p.designSource,
-              transform: p.transform,
-            })),
+            placements: item.placements.map((p) =>
+              p.kind === "custom"
+                ? { kind: "custom", side: p.side, design_id: p.designId, design_source: p.designSource, rect: p.rect }
+                : {
+                    kind: "fixed",
+                    side: p.side,
+                    print_option_id: p.printOptionId,
+                    design_id: p.designId,
+                    design_source: p.designSource,
+                    transform: p.transform,
+                  }
+            ),
             quantity: item.quantity,
           },
         ]

@@ -1,4 +1,5 @@
 import type {
+  CmRect,
   ColorPhotos,
   CustomGarment,
   CustomPrintOption,
@@ -191,6 +192,101 @@ export function printMeasurements(spec: MockupSpec, view: PrintSide, print: Prin
     rightCm: round((drawn.x + drawn.width / 2 - (base.x + base.width / 2)) / unitsPerCm),
     downCm: round((drawn.y + drawn.height / 2 - (base.y + base.height / 2)) / unitsPerCm),
     scale: drawn.width / base.width,
+  };
+}
+
+/** viewBox units per centimetre on one side of the garment. */
+export function unitsPerCm(spec: MockupSpec, view: PrintSide) {
+  return sideLayout(spec, view).unitsPerCm;
+}
+
+// --- custom-size prints: a box in cm from the top-left of the print area, anywhere on the photo ---
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/** Where a custom print is drawn, in viewBox units. */
+export function customPrintRect(spec: MockupSpec, view: PrintSide, rect: CmRect): Rect {
+  const { area, unitsPerCm: u } = sideLayout(spec, view);
+  return { x: area.x + rect.x * u, y: area.y + rect.y * u, width: rect.w * u, height: rect.h * u };
+}
+
+/** The whole photo, in cm from the top-left of the print area — how far a custom print can go. */
+export function photoBoundsCm(spec: MockupSpec, view: PrintSide): CmRect {
+  const { area, viewHeight, unitsPerCm: u } = sideLayout(spec, view);
+  return { x: -area.x / u, y: -area.y / u, w: PHOTO_VIEW_WIDTH / u, h: viewHeight / u };
+}
+
+/** The print area's size in cm. */
+export function areaSizeCm(spec: MockupSpec, view: PrintSide) {
+  const { area, unitsPerCm: u } = sideLayout(spec, view);
+  return { w: area.width / u, h: area.height / u };
+}
+
+/**
+ * A custom print's box from a rect in viewBox units (where the customer dragged it), with its
+ * width kept between `minW` and `maxW` cm (same shape) and the box kept on the photo.
+ */
+export function customRectFrom(
+  spec: MockupSpec,
+  view: PrintSide,
+  target: Rect,
+  limits: { minW: number; maxW: number }
+): CmRect {
+  const { area, unitsPerCm: u } = sideLayout(spec, view);
+  const aspect = target.width / target.height;
+  const w = clamp(target.width / u, limits.minW, Math.max(limits.minW, limits.maxW));
+  const h = w / aspect;
+  return keepOnPhoto(spec, view, { x: (target.x - area.x) / u, y: (target.y - area.y) / u, w, h });
+}
+
+/** Keeps a custom print's box on the photo, rounded to millimetres. */
+export function keepOnPhoto(spec: MockupSpec, view: PrintSide, rect: CmRect): CmRect {
+  const bounds = photoBoundsCm(spec, view);
+  const w = Math.min(rect.w, bounds.w);
+  const h = Math.min(rect.h, bounds.h);
+  return {
+    x: round1(clamp(rect.x, bounds.x, bounds.x + bounds.w - w)),
+    y: round1(clamp(rect.y, bounds.y, bounds.y + bounds.h - h)),
+    w: round1(w),
+    h: round1(h),
+  };
+}
+
+/**
+ * Where a new custom print starts: the given size, shrunk to fit the print area if the area
+ * is smaller, centred across it and at its top.
+ */
+export function defaultCustomRect(spec: MockupSpec, view: PrintSide, size: { w: number; h: number }): CmRect {
+  const areaCm = areaSizeCm(spec, view);
+  const fit = Math.min(1, areaCm.w / size.w, areaCm.h / size.h);
+  const w = size.w * fit;
+  const h = size.h * fit;
+  return keepOnPhoto(spec, view, { x: (areaCm.w - w) / 2, y: 0, w, h });
+}
+
+/** The box reshaped to a design's proportions, inside the old box (so it never gets pricier). */
+export function fitRectToAspect(spec: MockupSpec, view: PrintSide, rect: CmRect, aspect: number): CmRect {
+  const w = aspect >= rect.w / rect.h ? rect.w : rect.h * aspect;
+  const h = w / aspect;
+  return keepOnPhoto(spec, view, { x: rect.x + (rect.w - w) / 2, y: rect.y, w, h });
+}
+
+/** The widest a custom print of this shape (width ÷ height) can be: as big as the whole photo. */
+export function maxCustomWidthOnPhoto(spec: MockupSpec, view: PrintSide, aspect: number) {
+  const bounds = photoBoundsCm(spec, view);
+  return Math.min(bounds.w, bounds.h * aspect);
+}
+
+/** For the print team: a custom print's size, and where its centre and top edge sit. */
+export function customMeasurements(spec: MockupSpec, view: PrintSide, rect: CmRect) {
+  const areaCm = areaSizeCm(spec, view);
+  return {
+    widthCm: round1(rect.w),
+    heightCm: round1(rect.h),
+    /** How far the print's centre is right (+) or left (−) of the garment's centre line. */
+    rightCm: round1(rect.x + rect.w / 2 - areaCm.w / 2),
+    /** How far the print's top edge is below (+) or above (−) the top of the print area. */
+    topCm: round1(rect.y),
   };
 }
 

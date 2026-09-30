@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -386,6 +387,19 @@ function LoginForm() {
           <Button type="submit" size="lg" className="w-full" disabled={loading}>
             {loading ? "Sending code…" : "Send Code"}
           </Button>
+          {mode === "signup" && (
+            <p className="text-center text-xs text-muted-foreground">
+              By creating an account you agree to our{" "}
+              <Link href="/terms" className="underline underline-offset-2">
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy-policy" className="underline underline-offset-2">
+                Privacy Policy
+              </Link>
+              .
+            </p>
+          )}
         </form>
       )}
 

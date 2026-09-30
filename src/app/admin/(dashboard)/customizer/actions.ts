@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/supabase/require-admin";
 import { slugify } from "@/lib/utils/slug";
-import type { FrontPlacement, GarmentGender, PhotoPoint, PrintBox } from "@/types";
+import type { FrontPlacement, GarmentGender, PhotoPoint, PrintBox, PrintKind } from "@/types";
 
 type Result = { error?: string };
 /** A saved list: `ids` holds each submitted row's id (new rows included), in order. */
@@ -42,13 +42,11 @@ export interface GsmRowInput {
 export interface PrintOptionRowInput {
   id?: string;
   name: string;
+  kind: PrintKind;
   description: string;
   widthCm: number;
   heightCm: number;
   frontPlacement: FrontPlacement;
-  priceFront: number | null;
-  priceBack: number | null;
-  priceBoth: number | null;
   isActive: boolean;
 }
 
@@ -487,17 +485,9 @@ export async function savePrintOptions(rows: PrintOptionRowInput[]): Promise<Lis
   if (rows.some((r) => !(r.widthCm > 0 && r.widthCm <= 60 && r.heightCm > 0 && r.heightCm <= 70))) {
     return { error: "Print width and height must be between 1 and 60–70 cm." };
   }
+  if (rows.some((r) => r.kind !== "size" && r.kind !== "placement")) return { error: "Choose a type for every print size." };
   if (rows.some((r) => r.frontPlacement !== "center" && r.frontPlacement !== "left_chest")) {
     return { error: "Choose a front placement for every print size." };
-  }
-  if (rows.some((r) => ![r.priceFront, r.priceBack, r.priceBoth].every(isPrice))) {
-    return { error: "Enter valid prices (or leave blank when a side isn't offered)." };
-  }
-  const noPrice = rows.find((r) => r.priceFront === null && r.priceBack === null);
-  if (noPrice) return { error: `"${noPrice.name}" needs a front or back price.` };
-  const bothOnly = rows.find((r) => r.priceBoth !== null && (r.priceFront === null || r.priceBack === null));
-  if (bothOnly) {
-    return { error: `"${bothOnly.name}": a front & back rate needs both a front and a back price.` };
   }
   const duplicate = findDuplicate(rows.map((r) => r.name));
   if (duplicate) return { error: `Print size "${duplicate}" is listed twice.` };
@@ -507,10 +497,13 @@ export async function savePrintOptions(rows: PrintOptionRowInput[]): Promise<Lis
     description: r.description.trim() || null,
     width_cm: r.widthCm,
     height_cm: r.heightCm,
-    front_placement: r.frontPlacement,
-    price_front: r.priceFront,
-    price_back: r.priceBack,
-    price_both: r.priceBoth,
+    kind: r.kind,
+    // Sizes are always centred. Prints have no prices of their own any more: front prints are
+    // included and the back print price is one setting (saveBackPrintPrice).
+    front_placement: r.kind === "size" ? "center" : r.frontPlacement,
+    price_front: null,
+    price_back: null,
+    price_both: null,
     is_active: r.isActive,
     sort_order: index,
   }));
@@ -526,6 +519,20 @@ export async function savePrintOptions(rows: PrintOptionRowInput[]): Promise<Lis
     if (links.length > 0) await supabase.from("custom_garment_print_options").insert(links);
   }
   return { ids };
+}
+
+/** The one price for a back print of any size (front prints are included in the garment price). */
+export async function saveBackPrintPrice(price: number | null): Promise<Result> {
+  if (price === null || !isPrice(price)) return { error: "Enter the back print price, e.g. 199 (0 if it's free)." };
+  const { supabase } = await requireAdmin();
+  const { error } = await supabase.from("settings").update({ custom_back_print_price: price }).eq("id", 1);
+  if (error) {
+    console.error("saveBackPrintPrice failed:", error);
+    return { error: GENERIC_ERROR };
+  }
+  revalidateStudio();
+  revalidatePath("/admin/customizer/prints");
+  return {};
 }
 
 // --- Design Hub ---------------------------------------------------------------------

@@ -4,6 +4,7 @@ import { getSettings } from "@/services/settings";
 export const metadata: Metadata = {
   title: "Returns & Exchange",
   description: "Returns and exchange policy for Custom Drip Chennai.",
+  alternates: { canonical: "/returns" },
 };
 
 export default async function ReturnsPage() {

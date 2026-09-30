@@ -140,6 +140,8 @@ export interface Settings {
   upi_qr_image_url: string | null;
   standard_shipping_fee: number;
   free_shipping_threshold: number;
+  /** Custom Studio: the flat price of a back print (0015); front prints are included. */
+  custom_back_print_price?: number | null;
   updated_at: string;
 }
 
@@ -256,8 +258,27 @@ export interface CustomPrintOption {
   price_front: number | null;
   price_back: number | null;
   price_both: number | null;
+  /**
+   * "size": A4, A3… — the sizes that price a custom-size print (the smallest one it fits in).
+   * "placement": a fixed print like a chest print or logo, front only.
+   * Missing until 0014_custom_size_prints.sql has been run.
+   */
+  kind?: PrintKind;
   sort_order: number;
   is_active: boolean;
+}
+
+export type PrintKind = "size" | "placement";
+
+/**
+ * A custom-size print's box, in cm, measured from the top-left corner of the side's print
+ * area (the box the admin marked on the garment photo). It can sit outside that area.
+ */
+export interface CmRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 /** Sizes, colours and GSM carry their garment_id; print options are shared across garments. */
@@ -269,6 +290,8 @@ export interface CustomCatalog {
   printOptions: CustomPrintOption[];
   /** Which print options each garment allows, by garment id. */
   garmentPrintOptionIds: Record<string, string[]>;
+  /** What any back print costs (front prints are included); null until the admin sets it. */
+  backPrintPrice: number | null;
 }
 
 export interface Design {
@@ -317,14 +340,27 @@ export interface PrintTransform {
 
 export type PrintOptionSummary = Pick<CustomPrintOption, "id" | "name" | "width_cm" | "height_cm" | "front_placement">;
 
-/** One print the customer placed: which side, which print size, which artwork. */
-export interface PlacementConfig {
+/** A fixed print (chest print, logo…) on the front, optionally moved/resized within the print area. */
+export interface FixedPlacementConfig {
+  kind?: "fixed";
   side: PrintSide;
   printOptionId: string;
   designId: string;
   designSource: DesignSource;
   transform: PrintTransform | null;
 }
+
+/** A custom-size print: any size up to the biggest print size, anywhere on the garment. */
+export interface CustomPlacementConfig {
+  kind: "custom";
+  side: PrintSide;
+  rect: CmRect;
+  designId: string;
+  designSource: DesignSource;
+}
+
+/** One print the customer placed. */
+export type PlacementConfig = FixedPlacementConfig | CustomPlacementConfig;
 
 /** What the customer picked — the only thing the server trusts; it re-prices from the DB. */
 export interface CustomTeeConfig {
@@ -341,9 +377,14 @@ export interface CustomTeeConfig {
 /** One print on an order line, as ordered (see place_order() in 0012_print_placements.sql). */
 export interface PlacementSnapshot {
   side: PrintSide;
+  /** "custom" from 0014 on; absent means a print of a set size. */
+  kind?: "fixed" | "custom";
+  /** For a custom print, its own box ("Custom size", w × h). */
   print_option: PrintOptionSummary;
   design: { id: string; name: string; image_url: string; source?: DesignSource; width?: number | null; height?: number | null } | null;
   transform: PrintTransform | null;
+  /** Custom prints only. */
+  rect?: CmRect | null;
 }
 
 /** Snapshot place_order() stores on a custom order line (built server-side from DB rows). */
@@ -420,9 +461,12 @@ export interface CustomCartItem {
 
 export interface CartPrint {
   side: PrintSide;
+  kind?: "fixed" | "custom";
+  /** For a custom print, its own box ("Custom size", w × h). */
   printOption: PrintOptionSummary;
   design: StudioDesign;
   transform: PrintTransform | null;
+  rect?: CmRect | null;
 }
 
 export type CartItem = ProductCartItem | CustomCartItem;

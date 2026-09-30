@@ -5,8 +5,9 @@ import { STORE_EMAIL, mailtoUrl, whatsappUrl } from "@/lib/utils/contact-links";
 import { getSettings } from "@/services/settings";
 
 export const metadata: Metadata = {
-  title: "Bulk & Corporate Orders",
-  description: "Bulk and corporate T-shirt orders from Custom Drip Chennai.",
+  title: "Bulk & Corporate T-Shirt Printing in Chennai",
+  description: "Bulk T-shirt printing in Chennai for companies, colleges, events and teams. Custom logos and designs, great prices on volume, delivered across India.",
+  alternates: { canonical: "/bulk-orders" },
 };
 
 const BULK_EMAIL_SUBJECT = "Bulk order enquiry";

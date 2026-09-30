@@ -3,6 +3,7 @@ import { Mona_Sans } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/components/cart/cart-context";
 import { StagingBanner } from "@/components/layout/staging-banner";
+import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/seo/site";
 import { isStaging } from "@/lib/utils/app-env";
 
 const monaSans = Mona_Sans({
@@ -10,27 +11,38 @@ const monaSans = Mona_Sans({
   subsets: ["latin"],
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+// Google Search Console's "HTML tag" check: paste only the content="…" value into this
+// environment variable on Vercel (a DNS TXT record at the domain registrar works too).
+const googleVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION;
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "Custom Drip Chennai | Original Graphic T-Shirts",
+    default: SITE_TITLE,
     template: "%s | Custom Drip Chennai",
   },
-  description:
-    "Custom Drip Chennai — original graphic T-shirts and streetwear. Shop our latest drops online.",
+  description: SITE_DESCRIPTION,
+  keywords: SITE_KEYWORDS,
+  applicationName: SITE_NAME,
+  category: "shopping",
+  // Canonical URLs are set per page: one here would be inherited by every page.
   openGraph: {
-    title: "Custom Drip Chennai | Original Graphic T-Shirts",
-    description:
-      "Custom Drip Chennai — original graphic T-shirts and streetwear. Shop our latest drops online.",
-    url: siteUrl,
-    siteName: "Custom Drip Chennai",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    siteName: SITE_NAME,
     locale: "en_IN",
     type: "website",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  ...(googleVerification ? { verification: { google: googleVerification } } : {}),
   // keep the staging copy of the site out of search results
-  robots: isStaging ? { index: false, follow: false } : undefined,
+  robots: isStaging
+    ? { index: false, follow: false }
+    : { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large" } },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

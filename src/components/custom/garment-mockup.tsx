@@ -4,21 +4,26 @@ import { useId, useRef } from "react";
 import {
   MIN_PRINT_SCALE,
   PHOTO_VIEW_WIDTH,
+  customPrintRect,
   defaultPrintRect,
   isLightColor,
   optimizedImage,
   printRect,
-  transformFor,
+  unitsPerCm,
   type PrintArea,
   type Rect,
 } from "@/lib/custom/mockup";
-import type { ColorPhotos, MockupSpec, PrintSide, PrintTransform } from "@/types";
+import type { CmRect, ColorPhotos, MockupSpec, PrintSide, PrintTransform } from "@/types";
 
 /** One print drawn on the mockup. */
 export interface MockupPrint {
   key: string;
   printArea: PrintArea;
   transform?: PrintTransform | null;
+  /** A custom-size print's own box; when set, it's drawn here instead of at the print size's spot. */
+  rectCm?: CmRect | null;
+  /** How narrow and wide the corner handle can resize it, in cm (default: 20–100% of its print size). */
+  widthLimitsCm?: { min: number; max: number };
   designUrl?: string | null;
   /** Shown under the guide box, e.g. "A4 Print · 21 × 29.7 cm". */
   label?: string;
@@ -29,7 +34,8 @@ export interface MockupEditor {
   /** The print being adjusted; null = none (tapping a print starts adjusting it). */
   activeKey: string | null;
   onSelect: (key: string) => void;
-  onChange: (key: string, transform: PrintTransform) => void;
+  /** Where the customer dragged the print to, in viewBox units; the caller keeps it in bounds. */
+  onChange: (key: string, target: Rect) => void;
 }
 
 export interface GarmentMockupProps {
@@ -94,7 +100,10 @@ function PhotoMockup({
   const light = isLightColor(colorHex);
   const guideStroke = light ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.8)";
   const fill = { width, height, preserveAspectRatio: "xMidYMid meet" } as const;
-  const drawn = prints.map((print) => ({ print, rect: printRect(spec, view, print.printArea, print.transform) }));
+  const drawn = prints.map((print) => ({
+    print,
+    rect: print.rectCm ? customPrintRect(spec, view, print.rectCm) : printRect(spec, view, print.printArea, print.transform),
+  }));
   const editing = !!editor?.activeKey;
   const active = drawn.find((d) => d.print.key === editor?.activeKey);
 
@@ -127,18 +136,27 @@ function PhotoMockup({
     } else {
       // Resize from the bottom-right corner, keeping the top-left corner and the shape.
       const ratio = d.start.height / d.start.width;
-      const base = defaultPrintRect(spec, view, d.print.printArea);
+      const { min, max } = widthLimits(d.print);
       const grow = Math.abs(dx) >= Math.abs(dy / ratio) ? dx : dy / ratio;
-      const w = Math.min(Math.max(d.start.width + grow, base.width * MIN_PRINT_SCALE), base.width);
+      const w = Math.min(Math.max(d.start.width + grow, min), max);
       target = { x: d.start.x, y: d.start.y, width: w, height: w * ratio };
     }
-    const next = transformFor(spec, view, d.print.printArea, target);
     if (frame.current !== null) cancelAnimationFrame(frame.current);
-    frame.current = requestAnimationFrame(() => editor.onChange(d.key, next));
+    frame.current = requestAnimationFrame(() => editor.onChange(d.key, target));
   }
 
   function endDrag() {
     drag.current = null;
+  }
+
+  /** The corner handle's width range, in viewBox units. */
+  function widthLimits(print: MockupPrint) {
+    if (print.widthLimitsCm) {
+      const u = unitsPerCm(spec, view);
+      return { min: print.widthLimitsCm.min * u, max: print.widthLimitsCm.max * u };
+    }
+    const base = defaultPrintRect(spec, view, print.printArea);
+    return { min: base.width * MIN_PRINT_SCALE, max: base.width };
   }
 
   // Arrow keys nudge the print being adjusted by half a centimetre.
@@ -147,13 +165,8 @@ function PhotoMockup({
     const step = { ArrowLeft: [-0.5, 0], ArrowRight: [0.5, 0], ArrowUp: [0, -0.5], ArrowDown: [0, 0.5] }[event.key];
     if (!step) return;
     event.preventDefault();
-    const current = active.print.transform ?? { scale: 1, dx: 0, dy: 0 };
-    const moved = printRect(spec, view, active.print.printArea, {
-      ...current,
-      dx: current.dx + step[0],
-      dy: current.dy + step[1],
-    });
-    editor.onChange(active.print.key, transformFor(spec, view, active.print.printArea, moved));
+    const u = unitsPerCm(spec, view);
+    editor.onChange(active.print.key, { ...active.rect, x: active.rect.x + step[0] * u, y: active.rect.y + step[1] * u });
   }
 
   return (
