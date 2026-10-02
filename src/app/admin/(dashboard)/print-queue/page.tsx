@@ -36,7 +36,11 @@ export default async function PrintQueuePage() {
               <div className="mt-3 space-y-2">
                 {order.order_items.map((item) => {
                   const details = customDetailsOf(item);
-                  if (details) return <CustomItemCard key={item.id} item={item} details={details} />;
+                  if (details) {
+                    return (
+                      <CustomItemCard key={item.id} item={item} details={details} orderNumber={order.order_number} />
+                    );
+                  }
                   return (
                     <p key={item.id} className="text-sm">
                       {item.product_name} — {item.color} / {item.size}{" "}

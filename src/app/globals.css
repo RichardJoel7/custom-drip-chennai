@@ -47,6 +47,12 @@ body {
   border-color: var(--danger);
 }
 
+/* Shipping labels print in solid black, every line of them. */
+.shipping-label,
+.shipping-label * {
+  border-color: #000;
+}
+
 :focus-visible {
   outline: 2px solid var(--foreground);
   outline-offset: 2px;

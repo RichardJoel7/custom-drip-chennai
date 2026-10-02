@@ -3,7 +3,7 @@ export function StagingBanner() {
   return (
     <div
       role="note"
-      className="bg-accent px-4 py-1.5 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-accent-foreground"
+      className="bg-accent px-4 py-1.5 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-accent-foreground print:hidden"
     >
       <span className="sm:hidden">Staging · test data · don&apos;t pay</span>
       <span className="hidden sm:inline">

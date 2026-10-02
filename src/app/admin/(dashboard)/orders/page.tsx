@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { OrdersTabs } from "@/components/admin/orders-tabs";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatPrice } from "@/lib/utils/format";
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "@/types";
@@ -15,6 +16,9 @@ export default async function AdminOrdersPage() {
   return (
     <div>
       <h1 className="font-display text-3xl tracking-wide">ORDERS</h1>
+      <div className="mt-4">
+        <OrdersTabs />
+      </div>
 
       {orders.length === 0 ? (
         <p className="mt-8 text-muted-foreground">No orders yet.</p>

@@ -121,6 +121,10 @@ export interface Order {
   order_status: OrderStatus;
   courier_name: string | null;
   courier_tracking_number: string | null;
+  // Absent on databases that haven't run 0017_shipping_labels.sql yet.
+  shipped_at?: string | null;
+  package_weight_g?: number | null;
+  label_printed_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -143,6 +147,13 @@ export interface Settings {
   /** Custom Studio: the flat price of a back print (0015); front prints are included. */
   custom_back_print_price?: number | null;
   updated_at: string;
+}
+
+/** The return address printed on shipping labels (0017) — admin-only, unlike `settings`. */
+export interface ShippingSettings {
+  from_name: string | null;
+  from_phone: string | null;
+  from_address: string | null;
 }
 
 // --- Custom Studio -----------------------------------------------------------------

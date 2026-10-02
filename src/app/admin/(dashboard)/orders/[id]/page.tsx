@@ -73,7 +73,9 @@ export default async function AdminOrderDetailPage({
           <div className="space-y-2">
             {order.order_items.map((item) => {
               const details = customDetailsOf(item);
-              if (details) return <CustomItemCard key={item.id} item={item} details={details} />;
+              if (details) {
+                return <CustomItemCard key={item.id} item={item} details={details} orderNumber={order.order_number} />;
+              }
               return (
                 <div key={item.id} className="flex items-center justify-between text-sm">
                   <span>
@@ -112,6 +114,8 @@ export default async function AdminOrderDetailPage({
           orderId={order.id}
           courierName={order.courier_name}
           courierTrackingNumber={order.courier_tracking_number}
+          packageWeightG={order.package_weight_g ?? null}
+          labelsReady={"label_printed_at" in order}
         />
 
         <div className="border border-border p-4">

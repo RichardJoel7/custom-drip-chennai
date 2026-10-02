@@ -72,16 +72,34 @@ export async function rejectPayment(orderId: string): Promise<{ error?: string }
 export async function updateShipment(
   orderId: string,
   courierName: string,
-  trackingNumber: string
+  trackingNumber: string,
+  packageWeightG: number | null = null
 ): Promise<{ error?: string }> {
   const { supabase } = await requireAdmin();
+  if (packageWeightG !== null && (!Number.isInteger(packageWeightG) || packageWeightG < 1 || packageWeightG > 50000)) {
+    return { error: "Enter the weight in grams, e.g. 250." };
+  }
+
+  const shipment = {
+    courier_name: courierName.trim() || null,
+    courier_tracking_number: trackingNumber.trim() || null,
+    order_status: "shipped" as const,
+  };
+
+  // The label's ship date: the first time it's marked shipped (re-saving a correction keeps it).
+  const { data: existing, error: noLabelColumns } = await supabase
+    .from("orders")
+    .select("shipped_at")
+    .eq("id", orderId)
+    .maybeSingle();
+
   const { data: order, error } = await supabase
     .from("orders")
-    .update({
-      courier_name: courierName || null,
-      courier_tracking_number: trackingNumber || null,
-      order_status: "shipped",
-    })
+    .update(
+      noLabelColumns
+        ? shipment // 0017_shipping_labels.sql not run yet: no ship date or weight to keep
+        : { ...shipment, shipped_at: existing?.shipped_at ?? new Date().toISOString(), package_weight_g: packageWeightG }
+    )
     .eq("id", orderId)
     .select(NOTIFIABLE_ORDER_FIELDS)
     .single();
@@ -92,5 +110,6 @@ export async function updateShipment(
 
   revalidatePath("/admin/orders");
   revalidatePath(`/admin/orders/${orderId}`);
+  revalidatePath("/admin/shipping");
   return {};
 }
