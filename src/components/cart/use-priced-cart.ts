@@ -3,10 +3,13 @@
 import { useMemo } from "react";
 import { useCart } from "@/components/cart/cart-context";
 import { currentUnitPrice } from "@/lib/custom/pricing";
-import type { CustomCatalog } from "@/types";
+import type { CartItem, CustomCatalog } from "@/types";
 
-export function usePricedCart(catalog: CustomCatalog | null) {
-  const { items, isHydrated } = useCart();
+/** The cart's lines at today's prices — or `only` these items instead (Buy Now). */
+export function usePricedCart(catalog: CustomCatalog | null, only: CartItem[] | null = null) {
+  const cart = useCart();
+  const items = only ?? cart.items;
+  const isHydrated = cart.isHydrated;
 
   return useMemo(() => {
     const lines = items.map((item) => ({ item, unitPrice: currentUnitPrice(item, catalog) }));

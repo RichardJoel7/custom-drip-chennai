@@ -22,8 +22,9 @@ export default function TermsPage() {
       <PolicySection title="Orders and prices">
         <p>
           Prices are in Indian Rupees and include printing. Shipping is shown at checkout. An order is confirmed once
-          we&apos;ve verified your UPI payment; if we can&apos;t verify it, or can&apos;t make the item, we&apos;ll
-          contact you and refund any amount paid.
+          your payment is received — straight away when you pay online through Cashfree Payments, or once we&apos;ve
+          verified a UPI transfer. An online order that isn&apos;t paid within 30 minutes is cancelled. If we can&apos;t
+          make an item, we&apos;ll contact you and refund any amount paid.
         </p>
       </PolicySection>
 

@@ -31,7 +31,12 @@ export default async function MyOrdersPage() {
           {orders.map((order) => (
             <Link
               key={order.id}
-              href={`/track/${order.tracking_token}`}
+              // an online order still waiting for payment goes where it can be paid
+              href={
+                order.payment_status === "awaiting_payment"
+                  ? `/order-success/${encodeURIComponent(order.order_number)}?t=${order.tracking_token}`
+                  : `/track/${order.tracking_token}`
+              }
               className="block rounded-2xl border border-border p-5 hover:border-foreground"
             >
               <div className="flex items-center justify-between">

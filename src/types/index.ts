@@ -1,7 +1,13 @@
 // Shared domain types for Custom Drip Chennai.
 // These mirror the Supabase schema in supabase/migrations/0001_tables.sql.
 
-export type PaymentStatus = "pending_verification" | "paid" | "rejected";
+// pending_verification: a manual UPI payment for the team to check; awaiting_payment: an
+// online (Cashfree) order the customer hasn't paid yet; failed: that online payment never
+// happened, so the order was cancelled and its stock put back (0018).
+export type PaymentStatus = "pending_verification" | "awaiting_payment" | "paid" | "rejected" | "failed";
+
+/** upi_manual: the shop's UPI QR plus a typed transaction ID; cashfree: paid online (0018). */
+export type PaymentMethod = "upi_manual" | "cashfree";
 
 // Deliberately kept minimal for a two-person team: New -> Payment Confirmed -> Shipped ->
 // Delivered (or Cancelled). Payment confirmation and shipping each automatically email the
@@ -21,8 +27,10 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   pending_verification: "Pending Verification",
+  awaiting_payment: "Awaiting Payment",
   paid: "Paid",
   rejected: "Rejected",
+  failed: "Payment Failed",
 };
 
 export interface ProductImage {
@@ -116,7 +124,8 @@ export interface Order {
   subtotal: number;
   shipping_fee: number;
   total: number;
-  upi_transaction_id: string;
+  /** Null for online (Cashfree) orders. */
+  upi_transaction_id: string | null;
   payment_status: PaymentStatus;
   order_status: OrderStatus;
   courier_name: string | null;
@@ -125,6 +134,15 @@ export interface Order {
   shipped_at?: string | null;
   package_weight_g?: number | null;
   label_printed_at?: string | null;
+  // Absent on databases that haven't run 0018_online_payments.sql yet.
+  payment_method?: PaymentMethod;
+  gateway_order_id?: string | null;
+  gateway_session_id?: string | null;
+  gateway_payment_id?: string | null;
+  /** How the customer paid online, as Cashfree names it: upi, credit_card, net_banking… */
+  gateway_payment_method?: string | null;
+  gateway_bank_reference?: string | null;
+  paid_at?: string | null;
   created_at: string;
   updated_at: string;
 }

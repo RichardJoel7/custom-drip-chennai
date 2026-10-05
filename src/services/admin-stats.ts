@@ -54,14 +54,19 @@ export async function getDashboardStats(period: StatsPeriod = "today"): Promise<
 
   // "Pending Payments" / "To Fulfill" are live operational queues — things that need your
   // attention right now — so they deliberately ignore the period filter. Orders / Revenue /
-  // Failed Payments are historical KPIs scoped to the period.
+  // Failed Payments are historical KPIs scoped to the period. Online checkouts that were never
+  // paid (awaiting / failed) aren't counted as orders; the failed ones count as failed payments.
   const [periodOrdersRes, allTimeOrdersRes, pendingPaymentsRes, failedPaymentsRes, toFulfillRes] =
     await Promise.all([
       supabase
         .from("orders")
         .select("total, payment_status", { count: "exact" })
+        .not("payment_status", "in", "(awaiting_payment,failed)")
         .gte("created_at", periodStart),
-      supabase.from("orders").select("id", { count: "exact", head: true }),
+      supabase
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .not("payment_status", "in", "(awaiting_payment,failed)"),
       supabase
         .from("orders")
         .select("id", { count: "exact", head: true })
@@ -69,7 +74,7 @@ export async function getDashboardStats(period: StatsPeriod = "today"): Promise<
       supabase
         .from("orders")
         .select("id", { count: "exact", head: true })
-        .eq("payment_status", "rejected")
+        .in("payment_status", ["rejected", "failed"])
         .gte("created_at", periodStart),
       supabase
         .from("orders")

@@ -26,8 +26,8 @@ export default function PrivacyPolicyPage() {
           </li>
           <li>
             <span className="font-semibold text-foreground">Order details:</span> your name, mobile number, email,
-            shipping address, optional Instagram username and order notes, what you ordered, and the UPI transaction
-            ID you enter to confirm payment.
+            shipping address, optional Instagram username and order notes, what you ordered, and how you paid (the
+            payment reference from our payment partner, or a UPI transaction ID you enter).
           </li>
           <li>
             <span className="font-semibold text-foreground">Saved details:</span> if you tick &ldquo;Save these
@@ -42,7 +42,10 @@ export default function PrivacyPolicyPage() {
             logged in, and your cart and wishlist choices saved in your browser.
           </li>
         </ul>
-        <p>We don&apos;t collect card or bank details — payments are made directly from your UPI app.</p>
+        <p>
+          We never see or store your card, UPI or bank details. Online payments are made on the secure page of our
+          payment partner, Cashfree Payments.
+        </p>
       </PolicySection>
 
       <PolicySection title="How we use it">
@@ -60,6 +63,10 @@ export default function PrivacyPolicyPage() {
         <p>Only the services we need to run the store, and only what each one needs:</p>
         <ul className="list-disc space-y-1 pl-5">
           <li>Our hosting and database providers (Vercel and Supabase), which store the website and your data.</li>
+          <li>
+            Cashfree Payments, our payment partner, which receives your name, email, phone number and the order amount to
+            process your payment.
+          </li>
           <li>Google, if you choose to sign in with Google, and our email provider for order emails.</li>
           <li>Courier partners, who receive your name, phone number and address to deliver your parcel.</li>
           <li>Government authorities, if the law requires it.</li>

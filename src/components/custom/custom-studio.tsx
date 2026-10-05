@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-context";
+import { BUY_NOW_CHECKOUT, setBuyNowItem } from "@/components/cart/buy-now";
 import { useCart } from "@/components/cart/cart-context";
 import { DesignHubDialog, type HubTab } from "@/components/custom/design-hub-dialog";
 import { GarmentMockup, type MockupEditor, type MockupPrint } from "@/components/custom/garment-mockup";
@@ -563,12 +564,14 @@ export function CustomStudio({
       designStepRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
-    addItem(item);
     setActiveKey(null);
+    // Buy Now: straight to checkout with just this tee; the cart is left as it is.
     if (goToCheckout) {
-      router.push("/checkout");
+      setBuyNowItem(item);
+      router.push(BUY_NOW_CHECKOUT);
       return;
     }
+    addItem(item);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 2500);
   }

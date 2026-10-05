@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { cashfreeConfig } from "@/lib/payments/cashfree";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { placeOrderSchema } from "@/lib/validations/checkout";
+import { settleStaleOnlinePayments, startOnlinePayment } from "@/services/payments";
 
 const FRIENDLY_ERRORS: Record<string, string> = {
   NO_ITEMS: "Your cart is empty.",
@@ -17,6 +19,7 @@ const FRIENDLY_ERRORS: Record<string, string> = {
   CUSTOM_OPTION_UNAVAILABLE:
     "A garment, colour, size, fabric or print option on one of your custom tees is no longer available. Please design it again.",
   DESIGN_UNAVAILABLE: "A design on one of your custom tees is no longer available. Please pick another design.",
+  INVALID_PAYMENT_METHOD: "Online payment isn't available right now. Please refresh the page and try again.",
 };
 
 function friendlyMessageFor(rawMessage: string): string {
@@ -56,6 +59,17 @@ export async function POST(request: Request) {
 
   const input = parsed.data;
   const supabase = createAdminClient();
+
+  // With Cashfree set up, every order is paid online; without it, by UPI transaction ID.
+  const online = cashfreeConfig() !== null;
+  if (online !== (input.paymentMethod === "cashfree")) {
+    return NextResponse.json(
+      { error: "The payment options have changed. Please refresh the page and try again." },
+      { status: 409 }
+    );
+  }
+  // Unpaid online orders from earlier give their stock back before this one takes any.
+  if (online) await settleStaleOnlinePayments();
 
   const productItems = input.items.flatMap((item) =>
     item.type === "custom"
@@ -100,12 +114,14 @@ export async function POST(request: Request) {
     p_state: input.state,
     p_pincode: input.pincode,
     p_order_notes: input.orderNotes || null,
-    p_upi_transaction_id: input.upiTransactionId,
+    p_upi_transaction_id: online ? null : input.upiTransactionId,
     p_items: productItems,
     p_auth_user_id: user.id,
     // Only sent when needed, so product-only orders keep working on a database that
     // hasn't run 0009_custom_studio.sql yet.
     ...(customItems.length > 0 ? { p_custom_items: customItems } : {}),
+    // Only sent for online payments, so manual UPI keeps working before 0018_online_payments.sql.
+    ...(online ? { p_payment_method: "cashfree" } : {}),
   });
 
   if (error) {
@@ -121,9 +137,31 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!online) {
+    return NextResponse.json({
+      orderNumber: result.out_order_number,
+      trackingToken: result.out_tracking_token,
+      total: result.out_total,
+    });
+  }
+
+  const payment = await startOnlinePayment({
+    orderId: result.out_order_id,
+    customer: { userId: user.id, name: input.fullName, email: input.email, phone: input.mobileNumber },
+    origin: new URL(request.url).origin,
+    buyNow: input.source === "buy_now",
+  });
+  if (!payment) {
+    return NextResponse.json(
+      { error: "We couldn't start the payment just now. Nothing was charged — please try again in a minute." },
+      { status: 502 }
+    );
+  }
+
   return NextResponse.json({
     orderNumber: result.out_order_number,
     trackingToken: result.out_tracking_token,
     total: result.out_total,
+    payment: { sessionId: payment.sessionId, mode: payment.mode },
   });
 }

@@ -83,13 +83,22 @@ export const customItemPayloadSchema = z
     { message: "Each print can only be used once per side" }
   );
 
-export const placeOrderSchema = z.object({
-  ...checkoutFormSchema.shape,
-  upiTransactionId: z.string().trim().min(4, "Enter your UPI transaction/reference ID"),
-  items: z
-    .array(z.union([customItemPayloadSchema, productItemPayloadSchema]))
-    .min(1, "Your cart is empty")
-    .max(50, "Too many items in one order"),
-});
+export const placeOrderSchema = z
+  .object({
+    ...checkoutFormSchema.shape,
+    // "cashfree": paid online after the order is created; "upi_manual": paid first, ID typed in
+    paymentMethod: z.enum(["cashfree", "upi_manual"]).default("upi_manual"),
+    // "buy_now": one item from a Buy Now button, so paying for it must leave the cart alone
+    source: z.enum(["cart", "buy_now"]).default("cart"),
+    upiTransactionId: z.string().trim().optional(),
+    items: z
+      .array(z.union([customItemPayloadSchema, productItemPayloadSchema]))
+      .min(1, "Your cart is empty")
+      .max(50, "Too many items in one order"),
+  })
+  .refine((order) => order.paymentMethod === "cashfree" || (order.upiTransactionId ?? "").length >= 4, {
+    message: "Enter your UPI transaction/reference ID",
+    path: ["upiTransactionId"],
+  });
 
 export type PlaceOrderInput = z.infer<typeof placeOrderSchema>;

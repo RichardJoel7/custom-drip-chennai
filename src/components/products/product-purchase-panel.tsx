@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/auth-context";
+import { BUY_NOW_CHECKOUT, setBuyNowItem } from "@/components/cart/buy-now";
 import { useCart } from "@/components/cart/cart-context";
 import { toggleWishlist } from "@/app/(site)/wishlist/actions";
 import { cn } from "@/lib/utils/cn";
@@ -98,11 +99,12 @@ export function ProductPurchasePanel({
     setTimeout(() => setJustAdded(false), 1800);
   }
 
+  // Straight to checkout with just this item; the cart is left as it is.
   function handleBuyNow() {
     const item = buildCartItem();
     if (!item) return;
-    addItem(item);
-    router.push("/checkout");
+    setBuyNowItem(item);
+    router.push(BUY_NOW_CHECKOUT);
   }
 
   return (

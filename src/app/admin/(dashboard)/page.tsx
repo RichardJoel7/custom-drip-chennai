@@ -3,6 +3,7 @@ import Link from "next/link";
 import { StatCard } from "@/components/admin/stat-card";
 import { formatPrice } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
+import { settleStaleOnlinePayments } from "@/services/payments";
 import {
   getDashboardStats,
   isStatsPeriod,
@@ -19,6 +20,7 @@ export default async function AdminDashboardPage({
 }) {
   const { period: rawPeriod } = await searchParams;
   const period: StatsPeriod = isStatsPeriod(rawPeriod) ? rawPeriod : "today";
+  await settleStaleOnlinePayments();
   const stats = await getDashboardStats(period);
   const periodLabel = STATS_PERIODS.find((p) => p.value === period)?.label ?? "Today";
 

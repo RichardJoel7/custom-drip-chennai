@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { CustomItemCard } from "@/components/admin/custom-item-card";
 import { OrderStatusSelect } from "@/components/admin/order-status-select";
 import { customDetailsOf } from "@/lib/custom/order-item";
+import { OnlinePaymentPanel } from "@/components/admin/online-payment-panel";
 import { PaymentVerificationPanel } from "@/components/admin/payment-verification-panel";
 import { ShipmentForm } from "@/components/admin/shipment-form";
 import { formatDateTime, formatPrice } from "@/lib/utils/format";
@@ -35,11 +36,22 @@ export default async function AdminOrderDetailPage({
       </div>
 
       <div className="mt-6 space-y-4">
-        <PaymentVerificationPanel
-          orderId={order.id}
-          paymentStatus={order.payment_status}
-          upiTransactionId={order.upi_transaction_id}
-        />
+        {order.payment_method === "cashfree" ? (
+          <OnlinePaymentPanel
+            orderId={order.id}
+            paymentStatus={order.payment_status}
+            method={order.gateway_payment_method ?? null}
+            paymentId={order.gateway_payment_id ?? null}
+            bankReference={order.gateway_bank_reference ?? null}
+            paidAt={order.paid_at ?? null}
+          />
+        ) : (
+          <PaymentVerificationPanel
+            orderId={order.id}
+            paymentStatus={order.payment_status}
+            upiTransactionId={order.upi_transaction_id ?? ""}
+          />
+        )}
 
         <div className="border border-border p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer</p>

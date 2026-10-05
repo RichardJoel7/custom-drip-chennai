@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { clearBuyNowItem, useBuyNowItem } from "@/components/cart/buy-now";
 import { useCart } from "@/components/cart/cart-context";
 import { usePricedCart } from "@/components/cart/use-priced-cart";
 import { Button, LinkButton } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { UpiPaymentPanel } from "@/components/checkout/upi-payment-panel";
 import { saveCheckoutDetails } from "@/app/(site)/checkout/actions";
 import { describePrints, printDisplayName } from "@/lib/custom/pricing";
 import { canonicalLocation } from "@/lib/data/india-locations";
+import { openCashfreeCheckout } from "@/lib/payments/cashfree-checkout";
 import { formatPrice } from "@/lib/utils/format";
 import { calculateShipping } from "@/lib/utils/shipping";
 import {
@@ -87,14 +89,23 @@ export function CheckoutFlow({
   catalog,
   savedDetails,
   accountEmail,
+  onlinePayment,
+  buyNow,
 }: {
   settings: Settings;
   catalog: CustomCatalog | null;
   savedDetails: SavedCheckoutDetails | null;
   accountEmail: string | null;
+  /** Set when Cashfree is: customers pay online instead of typing a UPI transaction ID. */
+  onlinePayment: { mode: "sandbox" | "production" } | null;
+  /** Came from a Buy Now button: check out that one item, not the cart. */
+  buyNow: boolean;
 }) {
   const { clearCart } = useCart();
-  const { items, subtotal, hasUnavailable, isHydrated } = usePricedCart(catalog);
+  const buyNowItem = useBuyNowItem();
+  // without the item (e.g. a Buy Now link opened in a new tab), it's the cart as usual
+  const single = useMemo(() => (buyNow && buyNowItem ? [buyNowItem] : null), [buyNow, buyNowItem]);
+  const { items, subtotal, hasUnavailable, isHydrated } = usePricedCart(catalog, single);
   const router = useRouter();
 
   const [step, setStep] = useState<Step>("details");
@@ -110,6 +121,12 @@ export function CheckoutFlow({
   const [upiTransactionId, setUpiTransactionId] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Each step starts at the top: the details form is long and the payment step short, so
+  // staying at the same scroll position would leave the Pay button off-screen above.
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [step]);
 
   const shipping = calculateShipping(subtotal, settings);
   const total = subtotal + shipping;
@@ -157,6 +174,36 @@ export function CheckoutFlow({
     }
   }
 
+  // Online: create the order, then hand over to Cashfree. The cart is kept until the payment
+  // is confirmed, so an abandoned payment can simply be tried again.
+  async function handlePayOnline() {
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const response = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          paymentMethod: "cashfree",
+          source: single ? "buy_now" : "cart",
+          items: items.map(toOrderPayload),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.payment) {
+        setSubmitError(data.error ?? "We couldn't start the payment. Please try again.");
+        setSubmitting(false);
+        return;
+      }
+      await openCashfreeCheckout(data.payment);
+      // the page is now on its way to Cashfree; stay in the "submitting" state
+    } catch {
+      setSubmitError("We couldn't open the payment page. Check your connection and try again.");
+      setSubmitting(false);
+    }
+  }
+
   async function handlePlaceOrder() {
     if (!upiTransactionId.trim()) {
       setSubmitError("Please enter your UPI transaction/reference ID.");
@@ -184,7 +231,8 @@ export function CheckoutFlow({
         return;
       }
 
-      clearCart();
+      if (single) clearBuyNowItem();
+      else clearCart();
       router.push(`/order-success/${data.orderNumber}?t=${data.trackingToken}`);
     } catch {
       setSubmitError("Something went wrong while placing your order. Please try again.");
@@ -398,27 +446,39 @@ export function CheckoutFlow({
             </p>
           )}
 
-          <UpiPaymentPanel settings={settings} amount={total} />
+          {onlinePayment ? (
+            <OnlinePaymentPanel amount={total} testMode={onlinePayment.mode === "sandbox"} />
+          ) : (
+            <>
+              <UpiPaymentPanel settings={settings} amount={total} />
 
-          <div>
-            <Label htmlFor="upiTransactionId" required>
-              UPI Transaction ID
-            </Label>
-            <Input
-              id="upiTransactionId"
-              required
-              value={upiTransactionId}
-              onChange={(e) => setUpiTransactionId(e.target.value)}
-              placeholder="e.g. 123456789012"
-            />
-          </div>
+              <div>
+                <Label htmlFor="upiTransactionId" required>
+                  UPI Transaction ID
+                </Label>
+                <Input
+                  id="upiTransactionId"
+                  required
+                  value={upiTransactionId}
+                  onChange={(e) => setUpiTransactionId(e.target.value)}
+                  placeholder="e.g. 123456789012"
+                />
+              </div>
+            </>
+          )}
 
           {submitError && <p className="text-sm text-danger">{submitError}</p>}
 
           <div className="space-y-2">
-            <Button size="lg" className="w-full" disabled={submitting} onClick={handlePlaceOrder}>
-              {submitting ? "Placing Order…" : "I Have Paid — Place Order"}
-            </Button>
+            {onlinePayment ? (
+              <Button size="lg" className="w-full" disabled={submitting} onClick={handlePayOnline}>
+                {submitting ? "Opening secure payment…" : `Pay ${formatPrice(total)}`}
+              </Button>
+            ) : (
+              <Button size="lg" className="w-full" disabled={submitting} onClick={handlePlaceOrder}>
+                {submitting ? "Placing Order…" : "I Have Paid — Place Order"}
+              </Button>
+            )}
             <button
               type="button"
               className="w-full text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground underline underline-offset-4"
@@ -428,6 +488,35 @@ export function CheckoutFlow({
             </button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** What paying online looks like before the customer taps Pay. */
+function OnlinePaymentPanel({ amount, testMode }: { amount: number; testMode: boolean }) {
+  return (
+    <div className="rounded-2xl border border-border p-5">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amount to pay</p>
+        <p className="font-display text-2xl tracking-wide">{formatPrice(amount)}</p>
+      </div>
+      <p className="mt-3 text-sm font-semibold">Pay with any UPI app, card, net banking or wallet</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        You&apos;ll pay on Cashfree&apos;s secure page and come straight back here. Your order is confirmed the moment
+        the payment goes through.
+      </p>
+      <p className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-semibold uppercase tracking-wide">
+        {["UPI", "Cards", "Net banking", "Wallets"].map((method) => (
+          <span key={method} className="rounded-full bg-muted px-2.5 py-1">
+            {method}
+          </span>
+        ))}
+      </p>
+      {testMode && (
+        <p className="mt-3 rounded-xl bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground">
+          Test mode — no real money moves. Use Cashfree&apos;s test UPI ID or test card.
+        </p>
       )}
     </div>
   );

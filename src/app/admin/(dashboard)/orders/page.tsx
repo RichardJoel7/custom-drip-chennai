@@ -6,11 +6,13 @@ import { formatDate, formatPrice } from "@/lib/utils/format";
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "@/types";
 import { requireAdmin } from "@/lib/supabase/require-admin";
 import { getOrdersForAdmin } from "@/services/orders";
+import { settleStaleOnlinePayments } from "@/services/payments";
 
 export const metadata: Metadata = { title: "Orders" };
 
 export default async function AdminOrdersPage() {
   await requireAdmin();
+  await settleStaleOnlinePayments();
   const orders = await getOrdersForAdmin();
 
   return (
@@ -38,7 +40,15 @@ export default async function AdminOrdersPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-semibold">{formatPrice(order.total)}</span>
-                <Badge tone={order.payment_status === "paid" ? "success" : order.payment_status === "rejected" ? "danger" : "warning"}>
+                <Badge
+                  tone={
+                    order.payment_status === "paid"
+                      ? "success"
+                      : order.payment_status === "rejected" || order.payment_status === "failed"
+                        ? "danger"
+                        : "warning"
+                  }
+                >
                   {PAYMENT_STATUS_LABELS[order.payment_status]}
                 </Badge>
                 <Badge tone="neutral">{ORDER_STATUS_LABELS[order.order_status]}</Badge>
