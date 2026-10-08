@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cashfreeConfig } from "@/lib/payments/cashfree";
+import { browserOrigin } from "@/lib/seo/site";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { placeOrderSchema } from "@/lib/validations/checkout";
@@ -148,7 +149,7 @@ export async function POST(request: Request) {
   const payment = await startOnlinePayment({
     orderId: result.out_order_id,
     customer: { userId: user.id, name: input.fullName, email: input.email, phone: input.mobileNumber },
-    origin: new URL(request.url).origin,
+    origin: browserOrigin(request),
     buyNow: input.source === "buy_now",
   });
   if (!payment) {

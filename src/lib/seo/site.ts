@@ -10,6 +10,17 @@ function siteUrlFromEnv() {
 }
 
 export const SITE_URL = siteUrlFromEnv();
+
+/**
+ * The address the shopper is browsing, for links handed back to their browser (e.g. the page
+ * Cashfree returns to). Not `request.url`: behind Hostinger's proxy Next builds that from the
+ * address the server listens on (https://0.0.0.0:3000). Browsers send the real one as the Origin
+ * header on every POST; SITE_URL covers requests without it.
+ */
+export function browserOrigin(request: Request): string {
+  const origin = request.headers.get("origin");
+  return origin && /^https?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(origin) ? origin : SITE_URL;
+}
 export const SITE_NAME = "Custom Drip Chennai";
 
 export const SITE_TITLE = "Custom T-Shirt Printing in Chennai | Custom Drip Chennai";
