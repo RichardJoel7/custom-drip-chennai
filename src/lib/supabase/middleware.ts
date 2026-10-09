@@ -20,6 +20,22 @@ function wwwRedirect(request: NextRequest) {
 }
 
 /**
+ * Sign-in cookies of a different Supabase project (e.g. the Tokyo one the live site used before
+ * October 2026). They're dead weight, and Hostinger rejects requests whose Cookie header passes
+ * ~8 KB with a 400 — two projects' sessions together can get there.
+ */
+function otherProjectAuthCookies(request: NextRequest) {
+  const ref = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split(".")[0];
+  return request.cookies
+    .getAll()
+    .map((cookie) => cookie.name)
+    .filter((name) => {
+      const match = name.match(/^sb-(.+?)-auth-token/);
+      return !!match && match[1] !== ref;
+    });
+}
+
+/**
  * Refreshes the Supabase auth session on every request and blocks unauthenticated
  * access to /admin (except /admin/login). The actual "is this user an admin"
  * check happens again server-side (via is_admin() / the admins table) on every
@@ -28,6 +44,13 @@ function wwwRedirect(request: NextRequest) {
 export async function updateSession(request: NextRequest) {
   const redirect = wwwRedirect(request);
   if (redirect) return redirect;
+
+  const staleCookies = otherProjectAuthCookies(request);
+  staleCookies.forEach((name) => request.cookies.delete(name));
+  const dropStale = (res: NextResponse) => {
+    staleCookies.forEach((name) => res.cookies.delete(name));
+    return res;
+  };
 
   let response = NextResponse.next({ request });
 
@@ -61,7 +84,7 @@ export async function updateSession(request: NextRequest) {
   if (isAdminPath && !isLoginPath && !claims) {
     const loginUrl = new URL("/admin/login", request.url);
     loginUrl.searchParams.set("next", request.nextUrl.pathname);
-    return NextResponse.redirect(loginUrl);
+    return dropStale(NextResponse.redirect(loginUrl));
   }
 
   // Once per user per browser, rather than on every page.
@@ -76,5 +99,5 @@ export async function updateSession(request: NextRequest) {
     });
   }
 
-  return response;
+  return dropStale(response);
 }
