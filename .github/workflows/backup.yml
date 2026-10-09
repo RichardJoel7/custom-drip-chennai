@@ -35,7 +35,8 @@ jobs:
     steps:
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # A fixed version: "latest" asks GitHub's API, which often hits its rate limit on shared runners.
+          version: 2.120.0
 
       - name: Dump the database
         env:
