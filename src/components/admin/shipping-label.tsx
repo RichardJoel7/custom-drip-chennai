@@ -1,4 +1,3 @@
-import { Barcode } from "@/components/admin/barcode";
 import type { OrderWithItems, ShippingSettings } from "@/types";
 
 function labelDate(iso: string) {
@@ -16,8 +15,8 @@ function Blank({ width = "22mm" }: { width?: string }) {
 }
 
 /**
- * One parcel's label, sized for 4 × 6 in (A6): who it's for in large type, the courier's
- * tracking number as a barcode, and the return address. Millimetres and points throughout, so
+ * One parcel's label, sized for 4 × 6 in (A6): who it's for in large type, the courier and
+ * tracking number, and the return address. Millimetres and points throughout, so
  * it prints at the same size on any printer.
  */
 export function ShippingLabel({
@@ -75,16 +74,10 @@ export function ShippingLabel({
             <b>Ship date:</b> {labelDate(order.shipped_at ?? new Date().toISOString())}
           </span>
         </div>
-        {tracking ? (
-          <div className="mt-[1.5mm] flex flex-col items-center">
-            <Barcode value={tracking} />
-            <p className="mt-[0.8mm] font-mono text-[10pt] font-bold tracking-wider">{tracking}</p>
-          </div>
-        ) : (
-          <p className="mt-[3mm] text-[9pt]">
-            <b>Tracking no.:</b> <Blank width="55mm" />
-          </p>
-        )}
+        <p className="mt-[2mm] text-[9pt]">
+          <b>Tracking no.:</b>{" "}
+          {tracking ? <span className="font-mono text-[12pt] font-bold tracking-wider">{tracking}</span> : <Blank width="55mm" />}
+        </p>
       </section>
 
       <section className="grid grid-cols-3 border-t-[0.4mm] border-black text-[8.5pt]">
