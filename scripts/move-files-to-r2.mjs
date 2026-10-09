@@ -47,7 +47,9 @@ const FILES_URL = setting("FILES_URL");
 const OLD_PREFIX = `${source.url}/storage/v1/object/public/`;
 const NEW_PREFIX = `${FILES_URL}/`;
 
-const auth = (project) => ({ apikey: project.key, Authorization: `Bearer ${project.key}` });
+// Legacy service_role keys are JWTs and go in both headers; newer sb_secret_ keys only as apikey.
+const auth = (project) =>
+  project.key.startsWith("eyJ") ? { apikey: project.key, Authorization: `Bearer ${project.key}` } : { apikey: project.key };
 const encodePath = (path) => path.split("/").map(encodeURIComponent).join("/");
 const r2Url = (key) => `${r2.endpoint}/${r2.bucket}/${encodePath(key)}`;
 
