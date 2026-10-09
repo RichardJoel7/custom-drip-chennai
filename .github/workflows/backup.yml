@@ -1,0 +1,78 @@
+# Nightly backup of the live database to the private Cloudflare R2 bucket (cdc-backups),
+# keeping the last 30. Supabase's free plan has no backups of its own.
+#
+# Needs these repository secrets (Settings → Secrets and variables → Actions):
+#   BACKUP_DB_URL         live Supabase → Connect → "Session pooler" string, with the DB password filled in
+#   R2_ENDPOINT           https://<account-id>.r2.cloudflarestorage.com
+#   R2_ACCESS_KEY_ID      R2 token that can write to the backup bucket
+#   R2_SECRET_ACCESS_KEY
+#   R2_BACKUP_BUCKET      cdc-backups
+#
+# Each backup is backup-YYYY-MM-DD.tar.gz holding roles.sql, schema.sql and data.sql from
+# `supabase db dump` — restore them into a new project the way Supabase's "Backup and
+# restore using the CLI" guide describes (psql with session_replication_role = replica).
+#
+# This repository is public, so the job must never print database contents to the log.
+
+name: Nightly database backup
+
+on:
+  schedule:
+    - cron: "30 20 * * *" # 02:00 India time
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Dump the database
+        env:
+          DB_URL: ${{ secrets.BACKUP_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DB_URL" ]; then
+            echo "::warning::Backups aren't set up yet (no BACKUP_DB_URL secret) - skipped."
+            echo "SKIP=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          mkdir -p dump
+          supabase db dump --db-url "$DB_URL" -f dump/roles.sql --role-only
+          supabase db dump --db-url "$DB_URL" -f dump/schema.sql
+          supabase db dump --db-url "$DB_URL" -f dump/data.sql --use-copy --data-only
+          file="backup-$(date -u +%Y-%m-%d).tar.gz"
+          tar -czf "$file" -C dump .
+          echo "FILE=$file" >> "$GITHUB_ENV"
+          ls -l dump "$file" | awk '{print $5, $9}'
+
+      - name: Upload to R2 and keep the newest 30
+        if: env.SKIP != '1'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # R2 doesn't need the extra checksums newer AWS CLIs add by default.
+          AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
+          AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+        run: |
+          set -euo pipefail
+          aws s3 cp "$FILE" "s3://$BUCKET/db/$FILE" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          aws s3 ls "s3://$BUCKET/db/" --endpoint-url "$R2_ENDPOINT" | awk '{print $4}' | grep '^backup-' | sort | head -n -30 |
+            while read -r old; do
+              aws s3 rm "s3://$BUCKET/db/$old" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+              echo "removed $old"
+            done
+          echo "uploaded $FILE"

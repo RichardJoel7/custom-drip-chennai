@@ -30,6 +30,43 @@ export function getEmailTransporter(): Transporter | null {
 }
 
 /**
+ * Admin check that this server can actually send through Gmail (some hosts block outgoing
+ * mail). Runs on staging too — it only ever writes to the admin who asked for it.
+ */
+export async function sendTestEmail(to: string): Promise<{ error?: string }> {
+  const user = process.env.GMAIL_USER;
+  const appPassword = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !appPassword) return { error: "GMAIL_USER and GMAIL_APP_PASSWORD aren't set on this site." };
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: { user, pass: appPassword },
+    connectionTimeout: 15_000,
+    greetingTimeout: 10_000,
+  });
+  try {
+    await transporter.sendMail({
+      from: getEmailFrom(),
+      to,
+      subject: "Test email from your Custom Drip Chennai website",
+      text: `This test was sent by the website at ${process.env.NEXT_PUBLIC_SITE_URL ?? "(unknown address)"}. Order emails will reach customers the same way.`,
+    });
+    return {};
+  } catch (error) {
+    const err = error as { code?: string; responseCode?: number; message?: string };
+    if (err.code === "EAUTH" || err.responseCode === 535) {
+      return { error: "Gmail refused the login. Check GMAIL_USER and create a new App Password for GMAIL_APP_PASSWORD." };
+    }
+    if (err.code === "ETIMEDOUT" || err.code === "ECONNECTION" || err.code === "ESOCKET") {
+      return { error: `This server couldn't reach Gmail (${err.code}). The host may be blocking outgoing email.` };
+    }
+    return { error: `Sending failed: ${err.message ?? "unknown error"}` };
+  } finally {
+    transporter.close();
+  }
+}
+
+/**
  * Gmail's SMTP relay only allows sending as the authenticated address itself (it blocks
  * spoofed From addresses) — so only the display name is customizable, never the email.
  */

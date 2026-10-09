@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { refreshCatalog } from "@/lib/cache";
+import { deleteStoredFiles } from "@/lib/storage/r2";
 import { requireAdmin } from "@/lib/supabase/require-admin";
 import { slugify } from "@/lib/utils/slug";
 import type { FrontPlacement, GarmentGender, PhotoPoint, PrintBox, PrintKind } from "@/types";
@@ -10,7 +12,6 @@ type Result = { error?: string };
 type ListResult = Result & { ids?: string[] };
 
 const GENERIC_ERROR = "Something went wrong while saving. Please try again.";
-const BUCKET = "product-images";
 
 export interface SizeRowInput {
   id?: string;
@@ -98,16 +99,15 @@ function isPrintBox(box: PrintBox | null | undefined): box is PrintBox {
 }
 
 function revalidateStudio(garmentId?: string) {
+  refreshCatalog();
   revalidatePath("/customize");
   revalidatePath("/admin/customizer");
   if (garmentId) revalidatePath(`/admin/customizer/garments/${garmentId}`);
 }
 
 async function removeFiles(paths: (string | null | undefined)[]) {
-  const list = paths.filter((p): p is string => !!p);
-  if (list.length === 0) return;
-  const { supabase } = await requireAdmin();
-  await supabase.storage.from(BUCKET).remove(list);
+  await requireAdmin();
+  await deleteStoredFiles("product-images", paths);
 }
 
 /**
@@ -567,6 +567,7 @@ export async function updateDesigns(
     }
   }
 
+  refreshCatalog();
   revalidatePath("/customize");
   return {};
 }
@@ -616,11 +617,19 @@ export async function deleteDesigns(
         return { error: GENERIC_ERROR, deleted, hidden };
       }
       const paths = (rows ?? []).map((r) => r.storage_path as string).filter(Boolean);
-      if (paths.length > 0) await supabase.storage.from("product-images").remove(paths);
+      await deleteStoredFiles("product-images", paths);
       deleted.push(...toDelete);
     }
   }
 
+  refreshCatalog();
   revalidatePath("/customize");
   return { deleted, hidden };
+}
+
+/** After the Design Hub uploads new designs (saved from the browser), so the studio shows them. */
+export async function refreshDesignHub(): Promise<void> {
+  await requireAdmin();
+  refreshCatalog();
+  revalidatePath("/customize");
 }

@@ -3,6 +3,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { CUSTOMER_DESIGN_BUCKET } from "@/lib/storage/customer-design-bucket";
+import { fileUrl } from "@/lib/storage/files";
+import { storedFileSize } from "@/lib/storage/r2";
 import { uploadToStudioDesign } from "@/services/custom-studio";
 import type { CustomerDesign, StudioDesign } from "@/types";
 
@@ -44,23 +46,15 @@ export async function saveCustomerDesign(input: {
   }
 
   // The file has to really be there, in this customer's own folder.
-  const { data: listed, error: listError } = await admin.storage
-    .from(CUSTOMER_DESIGN_BUCKET)
-    .list(folder, { search: file, limit: 5 });
-  if (listError || !listed?.some((f) => f.name === file)) {
-    return { error: "The upload didn't finish. Please try again." };
-  }
-
-  const {
-    data: { publicUrl },
-  } = admin.storage.from(CUSTOMER_DESIGN_BUCKET).getPublicUrl(input.storagePath);
+  const size = await storedFileSize(CUSTOMER_DESIGN_BUCKET, input.storagePath);
+  if (!size) return { error: "The upload didn't finish. Please try again." };
 
   const { data, error } = await admin
     .from("customer_designs")
     .insert({
       user_id: user.id,
       name: input.name.trim().slice(0, 120) || "My design",
-      image_url: publicUrl,
+      image_url: fileUrl(CUSTOMER_DESIGN_BUCKET, input.storagePath),
       storage_path: input.storagePath,
       width: toPixels(input.width),
       height: toPixels(input.height),

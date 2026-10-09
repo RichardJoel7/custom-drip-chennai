@@ -1,5 +1,23 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { linkCustomerAccount } from "@/lib/auth/link-customer-account";
+import { SITE_URL } from "@/lib/seo/site";
+
+// Remembers (per browser) which signed-in user already had their guest orders linked.
+const LINKED_COOKIE = "cdc_linked";
+
+/**
+ * Visitors on the bare domain go to the www address, so everyone shares one set of sign-in
+ * cookies. Only applies when the site's address is a www one (the live site). The Host header
+ * is used because request.url carries the server's own address behind Hostinger's proxy.
+ */
+function wwwRedirect(request: NextRequest) {
+  const site = new URL(SITE_URL);
+  if (!site.hostname.startsWith("www.")) return null;
+  const host = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "").split(":")[0].toLowerCase();
+  if (host !== site.hostname.slice(4)) return null;
+  return NextResponse.redirect(`${site.origin}${request.nextUrl.pathname}${request.nextUrl.search}`, 308);
+}
 
 /**
  * Refreshes the Supabase auth session on every request and blocks unauthenticated
@@ -8,6 +26,9 @@ import { NextResponse, type NextRequest } from "next/server";
  * admin page and Server Action — this middleware only keeps out logged-out visitors.
  */
 export async function updateSession(request: NextRequest) {
+  const redirect = wwwRedirect(request);
+  if (redirect) return redirect;
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -29,17 +50,30 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Checks the sign-in token's signature here, without a call to Supabase (the project signs
+  // tokens with an asymmetric key); it only goes to Supabase when the token needs refreshing.
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
 
   const isAdminPath = request.nextUrl.pathname.startsWith("/admin");
   const isLoginPath = request.nextUrl.pathname.startsWith("/admin/login");
 
-  if (isAdminPath && !isLoginPath && !user) {
+  if (isAdminPath && !isLoginPath && !claims) {
     const loginUrl = new URL("/admin/login", request.url);
     loginUrl.searchParams.set("next", request.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Once per user per browser, rather than on every page.
+  if (claims?.sub && claims.email && request.cookies.get(LINKED_COOKIE)?.value !== claims.sub) {
+    await linkCustomerAccount({ id: claims.sub, email: claims.email });
+    response.cookies.set(LINKED_COOKIE, claims.sub, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: request.headers.get("x-forwarded-proto") === "https" || request.nextUrl.protocol === "https:",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+    });
   }
 
   return response;

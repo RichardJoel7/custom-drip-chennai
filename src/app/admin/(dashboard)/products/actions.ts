@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { refreshCatalog } from "@/lib/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/supabase/require-admin";
 import { slugify } from "@/lib/utils/slug";
+import { deleteStoredFiles } from "@/lib/storage/r2";
 import { extractStoragePath } from "@/lib/utils/storage-path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -138,7 +140,7 @@ export async function saveProduct(
       .map((i) => extractStoragePath(i.image_url))
       .filter((p): p is string => !!p);
     if (paths.length > 0) {
-      await supabase.storage.from("product-images").remove(paths);
+      await deleteStoredFiles("product-images", paths);
     }
   }
 
@@ -191,6 +193,7 @@ export async function saveProduct(
     return { error: "Product saved, but there was a problem saving stock. Please try again." };
   }
 
+  refreshCatalog();
   revalidatePath("/shop");
   revalidatePath("/");
   revalidatePath(`/product/${slug}`);
@@ -272,6 +275,7 @@ export async function duplicateProduct(productId: string): Promise<{ error?: str
     );
   }
 
+  refreshCatalog();
   revalidatePath("/admin/products");
   return {};
 }
@@ -285,6 +289,7 @@ export async function setProductActive(productId: string, isActive: boolean): Pr
 
   if (error) return { error: GENERIC_ERROR };
 
+  refreshCatalog();
   revalidatePath("/shop");
   revalidatePath("/");
   revalidatePath("/admin/products");
@@ -315,9 +320,10 @@ export async function deleteProduct(productId: string): Promise<{ error?: string
     .map((i) => extractStoragePath(i.image_url))
     .filter((p): p is string => !!p);
   if (paths.length > 0) {
-    await supabase.storage.from("product-images").remove(paths);
+    await deleteStoredFiles("product-images", paths);
   }
 
+  refreshCatalog();
   revalidatePath("/shop");
   revalidatePath("/");
   revalidatePath("/admin/products");

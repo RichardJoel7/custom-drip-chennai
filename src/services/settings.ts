@@ -1,4 +1,5 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { catalogCache } from "@/lib/cache";
+import { createPublicClient } from "@/lib/supabase/public";
 import type { Settings } from "@/types";
 
 export { calculateShipping } from "@/lib/utils/shipping";
@@ -17,10 +18,13 @@ const FALLBACK_SETTINGS: Settings = {
   updated_at: new Date().toISOString(),
 };
 
-export async function getSettings(): Promise<Settings> {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.from("settings").select("*").eq("id", 1).maybeSingle();
+// Cached across visitors (lib/cache.ts); a Supabase error throws so it isn't cached.
+const readSettings = catalogCache("settings", async () => {
+  const { data, error } = await createPublicClient().from("settings").select("*").eq("id", 1).maybeSingle();
+  if (error) throw error;
+  return (data as Settings | null) ?? FALLBACK_SETTINGS;
+});
 
-  if (error || !data) return FALLBACK_SETTINGS;
-  return data as Settings;
+export async function getSettings(): Promise<Settings> {
+  return readSettings().catch(() => FALLBACK_SETTINGS);
 }

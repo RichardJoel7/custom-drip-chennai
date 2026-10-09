@@ -89,7 +89,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
           <div>
             <Label>UPI QR Code</Label>
             <SingleImageUploader
-              storagePath="settings/upi-qr"
+              storageFolder="settings/upi-qr"
               imageUrl={upiQrImageUrl}
               onChange={setUpiQrImageUrl}
               label="QR Code"

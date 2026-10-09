@@ -15,6 +15,18 @@ function supabaseRemotePattern(): { protocol: "http" | "https"; hostname: string
 
 const supabasePattern = supabaseRemotePattern();
 
+// Uploaded files on Cloudflare R2 (NEXT_PUBLIC_FILES_URL, e.g. https://files.customdripchennai.com).
+function filesRemotePattern(): { protocol: "https"; hostname: string } | null {
+  try {
+    const url = new URL(process.env.NEXT_PUBLIC_FILES_URL ?? "");
+    return url.protocol === "https:" ? { protocol: "https", hostname: url.hostname } : null;
+  } catch {
+    return null;
+  }
+}
+
+const filesPattern = filesRemotePattern();
+
 // The local Supabase CLI serves storage from a private IP (127.0.0.1), which Next.js's
 // image optimizer blocks by default as an SSRF precaution. That protection only matters
 // for a real, publicly reachable Supabase project (always a public https hostname in
@@ -32,6 +44,7 @@ const nextConfig: NextConfig = {
       // Covers both a hosted Supabase project (https) and the local Supabase CLI (http,
       // 127.0.0.1) used during local development.
       ...(supabasePattern ? [{ ...supabasePattern, pathname: "/storage/v1/object/public/**" as const }] : []),
+      ...(filesPattern ? [filesPattern] : []),
       // Demo/placeholder product images only — safe to remove once real products are uploaded.
       { protocol: "https" as const, hostname: "placehold.co" },
     ],

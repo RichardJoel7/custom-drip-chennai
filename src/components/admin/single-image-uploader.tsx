@@ -2,16 +2,16 @@
 
 import Image from "next/image";
 import { useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { uploadCatalogFile } from "@/lib/storage/upload";
 import { compressImageFile } from "@/lib/utils/image";
 
 export function SingleImageUploader({
-  storagePath,
+  storageFolder,
   imageUrl,
   onChange,
   label,
 }: {
-  storagePath: string;
+  storageFolder: string;
   imageUrl: string;
   onChange: (url: string) => void;
   label: string;
@@ -24,21 +24,11 @@ export function SingleImageUploader({
     setError(null);
     setUploading(true);
     try {
-      const supabase = createClient();
       const blob = await compressImageFile(file, { maxDimension: 800, quality: 0.9 });
-      const path = `${storagePath}-${Date.now()}.jpg`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("product-images")
-        .upload(path, blob, { contentType: "image/jpeg", upsert: false });
-
-      if (uploadError) {
-        setError("Upload failed. Please try again.");
-        return;
-      }
-
-      const { data } = supabase.storage.from("product-images").getPublicUrl(path);
-      onChange(data.publicUrl);
+      const { url } = await uploadCatalogFile(blob, storageFolder, "image/jpeg");
+      onChange(url);
+    } catch {
+      setError("Upload failed. Please try again.");
     } finally {
       setUploading(false);
     }

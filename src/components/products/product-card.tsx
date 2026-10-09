@@ -37,7 +37,8 @@ export function ProductCard({ product }: { product: ProductWithDetails }) {
   }
 
   return (
-    <Link href={`/product/${product.slug}`} className="group block">
+    // No background prefetch: a grid of cards would each fetch their page (and hit Supabase) on scroll.
+    <Link href={`/product/${product.slug}`} prefetch={false} className="group block">
       <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl bg-muted">
         {activeImage ? (
           <Image

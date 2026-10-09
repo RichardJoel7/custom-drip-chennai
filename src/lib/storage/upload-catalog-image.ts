@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/client";
+import { uploadCatalogFile } from "@/lib/storage/upload";
 import { DESIGN_FILE_TYPES, prepareDesignFile } from "@/lib/utils/image";
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -78,7 +78,7 @@ export async function uploadCatalogImage(
   if (!DESIGN_FILE_TYPES.includes(file.type)) throw new Error("Use a PNG, JPG or WebP image.");
   if (file.size > MAX_FILE_BYTES) throw new Error("That file is over 20 MB.");
 
-  const { blob, extension, contentType } = await prepareDesignFile(file, 2000);
+  const { blob, contentType } = await prepareDesignFile(file, 2000);
   const img = await loadImage(blob);
 
   const check = inspectPhoto(img);
@@ -93,14 +93,6 @@ export async function uploadCatalogImage(
     );
   }
 
-  // Not crypto.randomUUID(): it's undefined on plain-http LAN addresses used for phone testing.
-  const key = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const storagePath = `${folder}/${key}.${extension}`;
-
-  const supabase = createClient();
-  const { error } = await supabase.storage.from("product-images").upload(storagePath, blob, { contentType, upsert: false });
-  if (error) throw new Error("Upload failed. Please try again.");
-
-  const { data } = supabase.storage.from("product-images").getPublicUrl(storagePath);
-  return { url: data.publicUrl, storagePath, aspect: img.naturalWidth / img.naturalHeight };
+  const { url, storagePath } = await uploadCatalogFile(blob, folder, contentType);
+  return { url, storagePath, aspect: img.naturalWidth / img.naturalHeight };
 }

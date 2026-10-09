@@ -2,9 +2,11 @@
 
 import Image from "next/image";
 import { useMemo, useRef, useState } from "react";
-import { deleteDesigns, updateDesigns } from "@/app/admin/(dashboard)/customizer/actions";
+import { deleteDesigns, refreshDesignHub, updateDesigns } from "@/app/admin/(dashboard)/customizer/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { discardCatalogUploads } from "@/lib/storage/actions";
+import { uploadCatalogFile } from "@/lib/storage/upload";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils/cn";
 import { DESIGN_FILE_TYPES, designNameFromFile, prepareDesignFile } from "@/lib/utils/image";
@@ -62,31 +64,22 @@ export function DesignHubManager({ initialDesigns }: { initialDesigns: Design[] 
     if (!DESIGN_FILE_TYPES.includes(file.type)) throw new Error("Use PNG, JPG or WebP");
     if (file.size > MAX_FILE_BYTES) throw new Error("File is over 20 MB");
 
-    const supabase = createClient();
-    // Not crypto.randomUUID(): it's undefined on plain-http LAN addresses used for phone testing.
-    const fileKey = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    const { blob, extension, contentType } = await prepareDesignFile(file);
-    const storagePath = `designs/${fileKey}.${extension}`;
+    const { blob, contentType } = await prepareDesignFile(file);
+    const { url, storagePath } = await uploadCatalogFile(blob, "designs", contentType);
 
-    const { error: uploadError } = await supabase.storage
-      .from("product-images")
-      .upload(storagePath, blob, { contentType, upsert: false });
-    if (uploadError) throw new Error("Upload failed");
-
-    const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(storagePath);
-    const { data, error } = await supabase
+    const { data, error } = await createClient()
       .from("designs")
       .insert({
         name: designNameFromFile(file.name),
         category,
-        image_url: urlData.publicUrl,
+        image_url: url,
         storage_path: storagePath,
       })
       .select("*")
       .single();
 
     if (error || !data) {
-      await supabase.storage.from("product-images").remove([storagePath]);
+      await discardCatalogUploads([storagePath]);
       throw new Error("Couldn't save design");
     }
     return data as Design;
@@ -117,6 +110,8 @@ export function DesignHubManager({ initialDesigns }: { initialDesigns: Design[] 
     }
 
     await Promise.all(Array.from({ length: Math.min(UPLOAD_CONCURRENCY, files.length) }, worker));
+    // the designs were saved from the browser, so the studio's cached list needs refreshing
+    if (failures.length < files.length) await refreshDesignHub().catch(() => {});
 
     setProgress(null);
     setFailed(failures);

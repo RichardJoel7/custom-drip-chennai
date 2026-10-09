@@ -2,7 +2,6 @@ import { AuthProvider } from "@/components/auth/auth-context";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { ContactFloaters } from "@/components/layout/contact-floaters";
-import { linkCustomerAccount } from "@/lib/auth/link-customer-account";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getSettings } from "@/services/settings";
 import { getShopMenu } from "@/services/products";
@@ -13,8 +12,6 @@ export default async function SiteLayout({ children }: LayoutProps<"/">) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  if (user) await linkCustomerAccount(user);
 
   const [settings, shopMenu, wishlistIds] = await Promise.all([
     getSettings(),

@@ -1,3 +1,5 @@
+import { catalogCache } from "@/lib/cache";
+import { createPublicClient } from "@/lib/supabase/public";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
   CustomCatalog,
@@ -11,7 +13,7 @@ import type {
   StudioDesign,
 } from "@/types";
 
-type ServerClient = Awaited<ReturnType<typeof createServerSupabaseClient>>;
+type ServerClient = Awaited<ReturnType<typeof createServerSupabaseClient>> | ReturnType<typeof createPublicClient>;
 
 /** "ready", or the migration that still has to be run for the studio to work. */
 export type CatalogStatus =
@@ -100,9 +102,28 @@ async function fetchCatalog(
   return { catalog, status: "ready" };
 }
 
+class CatalogNotReady extends Error {
+  constructor(readonly result: { catalog: CustomCatalog; status: CatalogStatus }) {
+    super(result.status);
+  }
+}
+
+// Only a complete, ready catalog is cached (lib/cache.ts): anything else throws, so a pending
+// migration or a Supabase hiccup is re-checked on the next visit instead of being remembered.
+const readReadyCatalog = catalogCache("custom-catalog", async () => {
+  const result = await fetchCatalog(createPublicClient(), true);
+  if (result.status !== "ready") throw new CatalogNotReady(result);
+  return result.catalog;
+});
+
 /** The live catalog; the studio only opens when status is "ready". */
 export async function getCustomCatalog(): Promise<{ catalog: CustomCatalog; status: CatalogStatus }> {
-  return fetchCatalog(await createServerSupabaseClient(), true);
+  try {
+    return { catalog: await readReadyCatalog(), status: "ready" };
+  } catch (error) {
+    if (error instanceof CatalogNotReady) return error.result;
+    return fetchCatalog(createPublicClient(), true);
+  }
 }
 
 /** For re-pricing the cart: empty while a migration is pending, so custom lines can't be ordered. */
@@ -135,9 +156,14 @@ async function fetchAllDesigns<T>(supabase: ServerClient, columns: string, activ
   }
 }
 
+const readStudioDesigns = catalogCache("studio-designs", async () => {
+  const designs = await fetchAllDesigns<StudioDesign>(createPublicClient(), "id, name, category, image_url", true);
+  if (!designs) throw new Error("Couldn't read the Design Hub");
+  return designs;
+});
+
 export async function getStudioDesigns(): Promise<StudioDesign[]> {
-  const supabase = await createServerSupabaseClient();
-  return (await fetchAllDesigns<StudioDesign>(supabase, "id, name, category, image_url", true)) ?? [];
+  return readStudioDesigns().catch(() => []);
 }
 
 /** The signed-in customer's own uploads, newest first (none when signed out). */

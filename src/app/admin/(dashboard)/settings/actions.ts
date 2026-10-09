@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { refreshCatalog } from "@/lib/cache";
+import { sendTestEmail } from "@/lib/email/gmail";
 import { requireAdmin } from "@/lib/supabase/require-admin";
 
 export interface SettingsInput {
@@ -42,6 +44,15 @@ export async function updateSettings(input: SettingsInput): Promise<{ error?: st
     return { error: "Something went wrong while saving settings. Please try again." };
   }
 
+  refreshCatalog();
   revalidatePath("/", "layout");
   return {};
+}
+
+/** Sends a test email to the signed-in admin, to prove this server can reach Gmail. */
+export async function sendAdminTestEmail(): Promise<{ error?: string; sentTo?: string }> {
+  const { admin } = await requireAdmin();
+  if (!admin.email) return { error: "Your admin account has no email address." };
+  const { error } = await sendTestEmail(admin.email);
+  return error ? { error } : { sentTo: admin.email };
 }

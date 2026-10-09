@@ -263,7 +263,7 @@ function UploadsPanel({
     setBusy(true);
     setError(null);
     try {
-      const design = await uploadCustomerDesign(file, userId);
+      const design = await uploadCustomerDesign(file);
       onUploaded(design);
       onSelect(design);
     } catch (e) {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SettingsForm } from "@/components/admin/settings-form";
+import { TestEmailButton } from "@/components/admin/test-email-button";
 import { requireAdmin } from "@/lib/supabase/require-admin";
 import { getSettings } from "@/services/settings";
 
@@ -14,6 +15,9 @@ export default async function AdminSettingsPage() {
       <h1 className="font-display text-3xl tracking-wide">SETTINGS</h1>
       <div className="mt-6">
         <SettingsForm settings={settings} />
+      </div>
+      <div className="mt-10 max-w-xl">
+        <TestEmailButton />
       </div>
     </div>
   );

@@ -1,6 +1,5 @@
 import { saveCustomerDesign } from "@/app/(site)/customize/actions";
-import { createClient } from "@/lib/supabase/client";
-import { CUSTOMER_DESIGN_BUCKET } from "@/lib/storage/customer-design-bucket";
+import { uploadDesignFile } from "@/lib/storage/upload";
 import { DESIGN_FILE_TYPES, designNameFromFile } from "@/lib/utils/image";
 import type { StudioDesign } from "@/types";
 
@@ -57,7 +56,7 @@ async function prepare(file: File, img: HTMLImageElement) {
 }
 
 /** Uploads a customer's own artwork into their folder and records it for printing. */
-export async function uploadCustomerDesign(file: File, userId: string): Promise<StudioDesign> {
+export async function uploadCustomerDesign(file: File): Promise<StudioDesign> {
   if (!DESIGN_FILE_TYPES.includes(file.type)) throw new Error("Use a PNG, JPG or WebP image.");
   if (file.size > MAX_FILE_BYTES) throw new Error("That file is over 25 MB. Please use a smaller one.");
 
@@ -65,15 +64,7 @@ export async function uploadCustomerDesign(file: File, userId: string): Promise<
   const prepared = await prepare(file, img);
   if (prepared.blob.size > MAX_FILE_BYTES) throw new Error("That file is over 25 MB. Please use a smaller one.");
 
-  // Not crypto.randomUUID(): it's undefined on plain-http LAN addresses used for phone testing.
-  const key = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const storagePath = `${userId}/${key}.${prepared.extension}`;
-
-  const supabase = createClient();
-  const { error } = await supabase.storage
-    .from(CUSTOMER_DESIGN_BUCKET)
-    .upload(storagePath, prepared.blob, { contentType: prepared.contentType, upsert: false, cacheControl: "31536000" });
-  if (error) throw new Error("Upload failed. Please check your connection and try again.");
+  const { storagePath } = await uploadDesignFile(prepared.blob, prepared.contentType);
 
   const result = await saveCustomerDesign({
     storagePath,

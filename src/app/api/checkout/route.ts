@@ -1,4 +1,6 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
+import { CATALOG_TAG } from "@/lib/cache";
 import { cashfreeConfig } from "@/lib/payments/cashfree";
 import { browserOrigin } from "@/lib/seo/site";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -129,6 +131,9 @@ export async function POST(request: Request) {
     console.error("place_order failed:", error);
     return NextResponse.json({ error: friendlyMessageFor(error.message) }, { status: 400 });
   }
+
+  // Stock went down: cached product pages refresh in the background on their next visit.
+  revalidateTag(CATALOG_TAG, "max");
 
   const result = Array.isArray(data) ? data[0] : data;
   if (!result) {

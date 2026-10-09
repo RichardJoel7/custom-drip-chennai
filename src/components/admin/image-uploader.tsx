@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { uploadCatalogFile } from "@/lib/storage/upload";
 import { compressImageFile } from "@/lib/utils/image";
 import { cn } from "@/lib/utils/cn";
 
@@ -29,28 +29,19 @@ export function ImageUploader({
   async function uploadFiles(files: FileList | File[]) {
     setError(null);
     setUploading(true);
-    const supabase = createClient();
     const uploaded: UploadedImage[] = [];
 
     try {
       for (const file of Array.from(files)) {
         if (!file.type.startsWith("image/")) continue;
 
-        const blob = await compressImageFile(file);
-        const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
-        const path = `${storageFolder}/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("product-images")
-          .upload(path, blob, { contentType: "image/jpeg", upsert: false });
-
-        if (uploadError) {
+        try {
+          const blob = await compressImageFile(file);
+          const { url } = await uploadCatalogFile(blob, storageFolder, "image/jpeg");
+          uploaded.push({ imageUrl: url, isMain: false });
+        } catch {
           setError("Some photos couldn't be uploaded. Please try again.");
-          continue;
         }
-
-        const { data } = supabase.storage.from("product-images").getPublicUrl(path);
-        uploaded.push({ imageUrl: data.publicUrl, isMain: false });
       }
     } finally {
       setUploading(false);
