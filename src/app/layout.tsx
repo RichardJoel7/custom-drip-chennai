@@ -45,6 +45,12 @@ export const metadata: Metadata = {
     : { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large" } },
 };
 
+// Every page is rendered per request and sent as "don't store" (Cache-Control: no-store), so
+// Hostinger's CDN never keeps a copy of a page. A page it kept would point at the previous
+// deploy's CSS/JS files, which are gone after the next deploy (unstyled pages, Oct 2026).
+// The CDN still caches /_next/static files: their names change with every build.
+export const dynamic = "force-dynamic";
+
 // If the stylesheet didn't arrive (a dropped mobile connection, or a page opened mid-deploy that
 // asks for the previous build's file), the page shows as bare text. globals.css sets --background
 // on :root, so it's empty only then: reload once, never more than once a minute.
@@ -58,7 +64,10 @@ const RELOAD_IF_UNSTYLED = `(function () {
     } catch (e) {
       return;
     }
-    location.reload();
+    // a fresh address, so no cache along the way can hand back the same broken page
+    var url = new URL(location.href);
+    url.searchParams.set("_r", String(Date.now()));
+    location.replace(url.toString());
   }
   if (document.readyState === "complete") check();
   else window.addEventListener("load", check);
