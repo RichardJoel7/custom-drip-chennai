@@ -283,6 +283,21 @@ export function CheckoutFlow({
     }
   }
 
+  // Not on a Buy Now checkout: that pays for the one tee only, so an added tee wouldn't be in it.
+  const suggestions = (className?: string) =>
+    single ? null : (
+      <QuickAddRow
+        products={products}
+        basisProductIds={inOrder}
+        freeShippingShortfall={
+          Number(settings.standard_shipping_fee) > 0 ? Math.max(0, Number(settings.free_shipping_threshold) - subtotal) : 0
+        }
+        title="Add to your order"
+        limit={6}
+        className={className}
+      />
+    );
+
   if (!isHydrated) return null;
 
   if (items.length === 0) {
@@ -511,6 +526,9 @@ export function CheckoutFlow({
             error={couponError}
           />
 
+          {/* Right under the totals, so an added tee shows up in them straight away. */}
+          {suggestions()}
+
           {onlinePayment ? (
             <OnlinePaymentPanel amount={total} testMode={onlinePayment.mode === "sandbox"} />
           ) : (
@@ -555,19 +573,8 @@ export function CheckoutFlow({
         </div>
       )}
 
-      {/* Not on a Buy Now checkout: that pays for the one tee only, so an added tee wouldn't be in it. */}
-      {!single && (
-        <QuickAddRow
-          products={products}
-          basisProductIds={inOrder}
-          freeShippingShortfall={
-            Number(settings.standard_shipping_fee) > 0 ? Math.max(0, Number(settings.free_shipping_threshold) - subtotal) : 0
-          }
-          title="Add to your order"
-          limit={6}
-          className="mt-10"
-        />
-      )}
+      {/* Below the form on the details step, so it doesn't get in the way of typing an address. */}
+      {step === "details" && suggestions("mt-10")}
     </div>
   );
 }
