@@ -18,8 +18,8 @@ export function ContactFloaters({
   const pathname = usePathname();
   if (!whatsappNumber && !callNumber) return null;
 
-  // The Custom Studio has its own price bar pinned to the bottom below lg.
-  const aboveStudioBar = pathname === "/customize";
+  // The Custom Studio and the cart pin a price bar to the bottom below lg.
+  const aboveStudioBar = pathname === "/customize" || pathname === "/cart";
 
   return (
     <div

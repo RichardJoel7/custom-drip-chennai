@@ -91,6 +91,8 @@ export const placeOrderSchema = z
     // "buy_now": one item from a Buy Now button, so paying for it must leave the cart alone
     source: z.enum(["cart", "buy_now"]).default("cart"),
     upiTransactionId: z.string().trim().optional(),
+    // a discount code (0019_coupons.sql); checked again by the database when the order is placed
+    couponCode: z.string().trim().max(30).optional(),
     items: z
       .array(z.union([customItemPayloadSchema, productItemPayloadSchema]))
       .min(1, "Your cart is empty")

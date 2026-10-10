@@ -1,6 +1,7 @@
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { CATALOG_TAG } from "@/lib/cache";
+import { couponErrorMessage, normalizeCouponCode } from "@/lib/coupons/codes";
 import { cashfreeConfig } from "@/lib/payments/cashfree";
 import { browserOrigin } from "@/lib/seo/site";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -105,7 +106,8 @@ export async function POST(request: Request) {
       : []
   );
 
-  const { data, error } = await supabase.rpc("place_order", {
+  const couponCode = input.couponCode ? normalizeCouponCode(input.couponCode) : "";
+  const orderArgs = {
     p_full_name: input.fullName,
     p_mobile_number: input.mobileNumber,
     p_email: input.email || null,
@@ -125,11 +127,25 @@ export async function POST(request: Request) {
     ...(customItems.length > 0 ? { p_custom_items: customItems } : {}),
     // Only sent for online payments, so manual UPI keeps working before 0018_online_payments.sql.
     ...(online ? { p_payment_method: "cashfree" } : {}),
-  });
+  };
+  // With a coupon, the same order plus the discount in one transaction (0019_coupons.sql);
+  // without one, plain place_order, so checkout works on a database that hasn't run 0019 yet.
+  const { data, error } = couponCode
+    ? await supabase.rpc("place_order_with_coupon", {
+        ...orderArgs,
+        p_custom_items: customItems,
+        p_payment_method: online ? "cashfree" : "upi_manual",
+        p_coupon_code: couponCode,
+      })
+    : await supabase.rpc("place_order", orderArgs);
 
   if (error) {
-    console.error("place_order failed:", error);
-    return NextResponse.json({ error: friendlyMessageFor(error.message) }, { status: 400 });
+    const couponProblem = couponErrorMessage(error.message);
+    if (!couponProblem) console.error("place_order failed:", error);
+    return NextResponse.json(
+      { error: couponProblem ?? friendlyMessageFor(error.message), ...(couponProblem ? { couponError: true } : {}) },
+      { status: 400 }
+    );
   }
 
   // Stock went down: cached product pages refresh in the background on their next visit.

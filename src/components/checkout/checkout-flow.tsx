@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { clearBuyNowItem, useBuyNowItem } from "@/components/cart/buy-now";
 import { useCart } from "@/components/cart/cart-context";
+import { FreeShippingNudge } from "@/components/cart/free-shipping-nudge";
 import { usePricedCart } from "@/components/cart/use-priced-cart";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Input, Label, Textarea, FieldError } from "@/components/ui/input";
+import { QuickAddRow } from "@/components/products/quick-add-row";
 import { StateCityFields } from "@/components/checkout/state-city-fields";
 import { UpiPaymentPanel } from "@/components/checkout/upi-payment-panel";
-import { saveCheckoutDetails } from "@/app/(site)/checkout/actions";
+import { checkCoupon, saveCheckoutDetails, type AppliedCoupon } from "@/app/(site)/checkout/actions";
 import { describePrints, printDisplayName } from "@/lib/custom/pricing";
 import { canonicalLocation } from "@/lib/data/india-locations";
 import { openCashfreeCheckout } from "@/lib/payments/cashfree-checkout";
@@ -21,7 +23,7 @@ import {
   type CheckoutFormValues,
   type SavedCheckoutDetails,
 } from "@/lib/validations/checkout";
-import type { CartItem, CustomCatalog, Settings } from "@/types";
+import type { CartItem, CustomCatalog, ProductWithDetails, Settings } from "@/types";
 
 const EMPTY_FORM: CheckoutFormValues = {
   fullName: "",
@@ -91,6 +93,7 @@ export function CheckoutFlow({
   accountEmail,
   onlinePayment,
   buyNow,
+  products,
 }: {
   settings: Settings;
   catalog: CustomCatalog | null;
@@ -100,6 +103,8 @@ export function CheckoutFlow({
   onlinePayment: { mode: "sandbox" | "production" } | null;
   /** Came from a Buy Now button: check out that one item, not the cart. */
   buyNow: boolean;
+  /** The shop's live tees, for "You may also like". */
+  products: ProductWithDetails[];
 }) {
   const { clearCart } = useCart();
   const buyNowItem = useBuyNowItem();
@@ -121,6 +126,10 @@ export function CheckoutFlow({
   const [upiTransactionId, setUpiTransactionId] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
+  const [couponInput, setCouponInput] = useState("");
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [checkingCoupon, setCheckingCoupon] = useState(false);
 
   // Each step starts at the top: the details form is long and the payment step short, so
   // staying at the same scroll position would leave the Pay button off-screen above.
@@ -128,8 +137,38 @@ export function CheckoutFlow({
     window.scrollTo({ top: 0 });
   }, [step]);
 
+  // Shipping is worked out before the coupon, as the database does: a coupon never takes free
+  // shipping away. The discount is recalculated here so it follows the subtotal.
   const shipping = calculateShipping(subtotal, settings);
-  const total = subtotal + shipping;
+  const discount = coupon ? Math.round((subtotal * coupon.percentOff) / 100) : 0;
+  const total = subtotal - discount + shipping;
+  const inOrder = items.flatMap((item) => (item.kind === "custom" ? [] : [item.productId]));
+
+  async function applyCoupon() {
+    if (!couponInput.trim()) return;
+    setCheckingCoupon(true);
+    setCouponError(null);
+    try {
+      const result = await checkCoupon({ code: couponInput, subtotal, email: form.email });
+      if (result.coupon) {
+        setCoupon(result.coupon);
+        setCouponInput("");
+      } else {
+        setCouponError(result.error ?? "That coupon code isn't valid or has expired.");
+      }
+    } catch {
+      setCouponError("Coupons can't be checked right now. Please try again.");
+    } finally {
+      setCheckingCoupon(false);
+    }
+  }
+
+  /** The server turned the coupon down while placing the order: drop it so the total is right. */
+  function dropRefusedCoupon(data: { couponError?: boolean; error?: string }) {
+    if (!data.couponError) return;
+    setCoupon(null);
+    setCouponError(data.error ?? null);
+  }
 
   const orderSummary = useMemo(() => items.map(summaryLabel).join(", "), [items]);
 
@@ -187,11 +226,13 @@ export function CheckoutFlow({
           ...form,
           paymentMethod: "cashfree",
           source: single ? "buy_now" : "cart",
+          couponCode: coupon?.code,
           items: items.map(toOrderPayload),
         }),
       });
       const data = await response.json();
       if (!response.ok || !data.payment) {
+        dropRefusedCoupon(data);
         setSubmitError(data.error ?? "We couldn't start the payment. Please try again.");
         setSubmitting(false);
         return;
@@ -219,6 +260,7 @@ export function CheckoutFlow({
         body: JSON.stringify({
           ...form,
           upiTransactionId,
+          couponCode: coupon?.code,
           items: items.map(toOrderPayload),
         }),
       });
@@ -226,6 +268,7 @@ export function CheckoutFlow({
       const data = await response.json();
 
       if (!response.ok) {
+        dropRefusedCoupon(data);
         setSubmitError(data.error ?? "Something went wrong while placing your order. Please try again.");
         setSubmitting(false);
         return;
@@ -271,6 +314,8 @@ export function CheckoutFlow({
       <p className="mt-1 text-sm text-muted-foreground" title={orderSummary}>
         {items.length} item{items.length > 1 ? "s" : ""} · {formatPrice(total)}
       </p>
+
+      {step === "details" && <FreeShippingNudge subtotal={subtotal} settings={settings} className="mt-5" />}
 
       {step === "details" && (
         <div className="mt-6 space-y-4">
@@ -446,6 +491,26 @@ export function CheckoutFlow({
             </p>
           )}
 
+          <OrderSummary
+            subtotal={subtotal}
+            discount={discount}
+            shipping={shipping}
+            total={total}
+            coupon={coupon}
+            couponInput={couponInput}
+            onCouponInput={(value) => {
+              setCouponInput(value);
+              setCouponError(null);
+            }}
+            onApply={applyCoupon}
+            onRemove={() => {
+              setCoupon(null);
+              setCouponError(null);
+            }}
+            checking={checkingCoupon}
+            error={couponError}
+          />
+
           {onlinePayment ? (
             <OnlinePaymentPanel amount={total} testMode={onlinePayment.mode === "sandbox"} />
           ) : (
@@ -488,6 +553,114 @@ export function CheckoutFlow({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Not on a Buy Now checkout: that pays for the one tee only, so an added tee wouldn't be in it. */}
+      {!single && (
+        <QuickAddRow
+          products={products}
+          basisProductIds={inOrder}
+          freeShippingShortfall={
+            Number(settings.standard_shipping_fee) > 0 ? Math.max(0, Number(settings.free_shipping_threshold) - subtotal) : 0
+          }
+          title="Add to your order"
+          limit={6}
+          className="mt-10"
+        />
+      )}
+    </div>
+  );
+}
+
+/** Subtotal, coupon, shipping and total, with the box to enter a coupon code. */
+function OrderSummary({
+  subtotal,
+  discount,
+  shipping,
+  total,
+  coupon,
+  couponInput,
+  onCouponInput,
+  onApply,
+  onRemove,
+  checking,
+  error,
+}: {
+  subtotal: number;
+  discount: number;
+  shipping: number;
+  total: number;
+  coupon: AppliedCoupon | null;
+  couponInput: string;
+  onCouponInput: (value: string) => void;
+  onApply: () => void;
+  onRemove: () => void;
+  checking: boolean;
+  error: string | null;
+}) {
+  return (
+    <div className="rounded-2xl border border-border p-5 text-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Order summary</p>
+      <div className="mt-3 space-y-2">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Subtotal</span>
+          <span className="font-semibold">{formatPrice(subtotal)}</span>
+        </div>
+        {coupon && (
+          <div className="flex items-center justify-between gap-3 text-success">
+            <span>
+              Coupon <span className="font-semibold">{coupon.code}</span> ({coupon.percentOff}% off)
+              <button
+                type="button"
+                onClick={onRemove}
+                className="ml-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground underline underline-offset-2"
+              >
+                Remove
+              </button>
+            </span>
+            <span className="font-semibold">−{formatPrice(discount)}</span>
+          </div>
+        )}
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Shipping</span>
+          <span className="font-semibold">{shipping === 0 ? "FREE" : formatPrice(shipping)}</span>
+        </div>
+        <div className="flex justify-between border-t border-border pt-2 text-base">
+          <span className="font-semibold">Total</span>
+          <span className="font-bold">{formatPrice(total)}</span>
+        </div>
+      </div>
+
+      {!coupon && (
+        <form
+          className="mt-4 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onApply();
+          }}
+        >
+          <Label htmlFor="couponCode" className="sr-only">
+            Coupon code
+          </Label>
+          <Input
+            id="couponCode"
+            value={couponInput}
+            onChange={(e) => onCouponInput(e.target.value.toUpperCase())}
+            placeholder="Coupon code"
+            autoComplete="off"
+            autoCapitalize="characters"
+            maxLength={30}
+            className="py-2.5 uppercase"
+          />
+          <Button type="submit" variant="outline" size="md" className="flex-none rounded-none" disabled={checking || !couponInput.trim()}>
+            {checking ? "Checking…" : "Apply"}
+          </Button>
+        </form>
+      )}
+      {error && (
+        <p className="mt-2 text-sm text-danger" role="alert">
+          {error}
+        </p>
       )}
     </div>
   );

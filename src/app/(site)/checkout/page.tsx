@@ -4,6 +4,7 @@ import { CheckoutFlow } from "@/components/checkout/checkout-flow";
 import { cashfreeConfig } from "@/lib/payments/cashfree";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getOrderableCatalog } from "@/services/custom-studio";
+import { getActiveProducts } from "@/services/products";
 import { getSavedCheckoutDetails } from "@/services/saved-details";
 import { getSettings } from "@/services/settings";
 
@@ -19,10 +20,11 @@ export default async function CheckoutPage({ searchParams }: PageProps<"/checkou
 
   if (!user) redirect(`/login?next=${encodeURIComponent(buyNow ? "/checkout?buy=now" : "/checkout")}`);
 
-  const [settings, catalog, savedDetails] = await Promise.all([
+  const [settings, catalog, savedDetails, products] = await Promise.all([
     getSettings(),
     getOrderableCatalog(),
     getSavedCheckoutDetails(user.id),
+    getActiveProducts(),
   ]);
   const cashfree = cashfreeConfig();
   return (
@@ -33,6 +35,7 @@ export default async function CheckoutPage({ searchParams }: PageProps<"/checkou
       accountEmail={user.email ?? null}
       onlinePayment={cashfree ? { mode: cashfree.mode } : null}
       buyNow={buyNow}
+      products={products}
     />
   );
 }
