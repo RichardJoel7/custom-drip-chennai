@@ -102,7 +102,7 @@ export default async function ProductPage({
           ]),
         ]}
       />
-      <div className="grid gap-8 lg:grid-cols-2 lg:gap-16">
+      <div className="grid gap-8 md:grid-cols-2 lg:gap-16">
         <ProductGallery images={product.product_images} productName={product.name} />
         <div>
           <ProductPurchasePanel product={product} initialIsFavorited={initialIsFavorited} />

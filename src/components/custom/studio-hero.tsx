@@ -60,7 +60,7 @@ export function StudioBannerSlide({ tees, fromPrice }: { tees: StudioHeroTees | 
         aria-hidden="true"
         className="pointer-events-none absolute -right-[10cqw] top-1/2 h-[80cqh] w-[60cqw] -translate-y-1/2 rounded-full bg-accent/10 blur-3xl"
       />
-      <div className="relative flex h-full flex-col px-[7cqw] pb-[12cqw] pt-24 sm:flex-row sm:items-center sm:gap-[4cqw] sm:pb-[3cqw] sm:pt-16">
+      <div className="relative flex h-full flex-col px-[7cqw] pb-[12cqw] pt-24 sm:flex-row sm:items-center sm:gap-[4cqw] sm:px-[max(7cqw,5.5rem)] sm:pb-[3cqw] sm:pt-16">
         {/* copy */}
         <div className="sm:w-[46cqw] sm:flex-none">
           <span className="inline-flex rounded-full border border-accent/40 bg-accent/10 px-[3.5cqw] py-[1.4cqw] text-[2.6cqw] font-bold uppercase tracking-[0.2em] text-accent sm:px-[1.1cqw] sm:py-[0.45cqw] sm:text-[0.8cqw]">

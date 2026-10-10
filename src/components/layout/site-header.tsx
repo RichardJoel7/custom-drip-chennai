@@ -50,7 +50,7 @@ export function SiteHeader({
   return (
     <header className="sticky top-3 z-40 px-3 sm:top-4 sm:px-6">
       <div className="glass mx-auto flex h-16 max-w-6xl items-center justify-between rounded-full px-3 text-white shadow-lg shadow-black/10 sm:px-5">
-        <nav className="hidden flex-1 items-center gap-7 md:flex">
+        <nav className="hidden flex-1 items-center gap-7 lg:flex">
           <Link href="/" className="text-sm font-semibold uppercase tracking-wide transition-opacity hover:opacity-70">
             Home
           </Link>
@@ -63,17 +63,20 @@ export function SiteHeader({
           </Link>
         </nav>
 
-        <button
-          type="button"
-          aria-label="Toggle menu"
-          aria-expanded={menuOpen}
-          className="flex h-11 w-11 items-center justify-center md:hidden"
-          onClick={() => setMenuOpen((v) => !v)}
-        >
-          <MenuIcon open={menuOpen} />
-        </button>
+        {/* As wide as the icons on the right, so the logo sits in the true centre. */}
+        <div className="flex flex-1 lg:hidden">
+          <button
+            type="button"
+            aria-label="Toggle menu"
+            aria-expanded={menuOpen}
+            className="flex h-11 w-11 items-center justify-center"
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            <MenuIcon open={menuOpen} />
+          </button>
+        </div>
 
-        <Link href="/" className="flex flex-1 items-center justify-center md:flex-none" aria-label="Custom Drip Chennai — home">
+        <Link href="/" className="flex flex-none items-center justify-center" aria-label="Custom Drip Chennai — home">
           {logoError ? (
             <span className="font-display text-lg tracking-wide sm:text-xl">CUSTOM DRIP</span>
           ) : (
@@ -123,7 +126,7 @@ export function SiteHeader({
       {/* Absolute + invisible: the hero's -mt-16 assumes the header is exactly the 64px pill. */}
       <div
         className={cn(
-          "glass-menu absolute inset-x-3 top-full mt-2 overflow-y-auto overscroll-contain rounded-3xl text-white transition-[max-height,visibility] duration-200 sm:inset-x-6 md:hidden",
+          "glass-menu absolute inset-x-3 top-full mt-2 overflow-y-auto overscroll-contain rounded-3xl text-white transition-[max-height,visibility] duration-200 sm:inset-x-6 lg:hidden",
           menuOpen ? "visible max-h-[calc(100dvh-6.5rem)]" : "invisible max-h-0"
         )}
       >

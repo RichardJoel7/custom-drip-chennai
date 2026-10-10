@@ -38,10 +38,10 @@ export function ProductGallery({
   }
 
   return (
-    <div className="sm:flex sm:gap-3">
-      {/* Thumbnail rail — desktop only; mobile relies on swipe + dots below instead. */}
+    <div className="lg:flex lg:gap-3">
+      {/* Thumbnail rail — desktop only; phones and tablets swipe and use the dots below instead. */}
       {images.length > 1 && (
-        <div className="hidden sm:flex sm:w-20 sm:flex-none sm:flex-col sm:gap-2.5">
+        <div className="hidden lg:flex lg:w-20 lg:flex-none lg:flex-col lg:gap-2.5">
           {images.map((image, i) => (
             <button
               key={image.id}
@@ -80,7 +80,7 @@ export function ProductGallery({
                   alt={`${productName} — photo ${i + 1}`}
                   fill
                   priority={i === 0}
-                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  sizes="(max-width: 767px) 100vw, 50vw"
                   className="object-cover"
                 />
               </div>
@@ -110,7 +110,7 @@ export function ProductGallery({
         </div>
 
         {images.length > 1 && (
-          <div className="mt-3 flex justify-center gap-2 sm:hidden">
+          <div className="mt-3 flex justify-center gap-2 lg:hidden">
             {images.map((image, i) => (
               <button
                 key={image.id}

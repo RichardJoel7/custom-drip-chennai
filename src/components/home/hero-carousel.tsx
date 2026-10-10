@@ -2,7 +2,7 @@
 
 import { getImageProps, type StaticImageData } from "next/image";
 import Link from "next/link";
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
 import { cn } from "@/lib/utils/cn";
 
 interface ImageSlide {
@@ -37,6 +37,7 @@ export function HeroCarousel({
   mobileAspect: number;
 }) {
   const [index, setIndex] = useState(0);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (slides.length <= 1) return;
@@ -44,10 +45,26 @@ export function HeroCarousel({
     return () => clearInterval(id);
   }, [slides.length, index]);
 
+  // Swipe left/right on phones and tablets; a mostly vertical drag still scrolls the page.
+  function onTouchStart(e: TouchEvent) {
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }
+  function onTouchEnd(e: TouchEvent) {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start || slides.length <= 1) return;
+    const dx = e.changedTouches[0].clientX - start.x;
+    const dy = e.changedTouches[0].clientY - start.y;
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+    setIndex((i) => (i + (dx < 0 ? 1 : -1) + slides.length) % slides.length);
+  }
+
   return (
     <section
-      className="relative -mt-16 aspect-(--hero-mobile) w-full overflow-hidden bg-foreground text-white sm:aspect-(--hero-desktop)"
+      className="relative -mt-16 aspect-(--hero-mobile) w-full touch-pan-y overflow-hidden bg-foreground text-white sm:aspect-(--hero-desktop)"
       style={{ "--hero-mobile": mobileAspect, "--hero-desktop": desktopAspect } as CSSProperties}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
     >
       {slides.map((slide, i) => (
         <Link

@@ -632,9 +632,9 @@ export function CustomStudio({
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)] lg:gap-12">
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)] lg:gap-12">
         {/* PREVIEW */}
-        <div ref={previewRef} className="scroll-mt-24 lg:sticky lg:top-24 lg:self-start">
+        <div ref={previewRef} className="scroll-mt-24 md:sticky md:top-24 md:self-start">
           <div className="relative overflow-hidden rounded-[2rem] border border-border bg-[radial-gradient(circle_at_50%_32%,#ffffff_0%,#f1f1ee_55%,#e6e6e2_100%)] p-4 sm:p-6">
             <div className="flex items-center justify-between gap-3">
               <div className="flex rounded-full border border-border bg-background p-1" role="tablist" aria-label="Preview side">
@@ -795,7 +795,7 @@ export function CustomStudio({
 
           {gsmOptions.length > 0 && (
             <Step index={nextStep()} title="Fabric weight" aside={gsm ? gsmLabel(gsm.gsm) : undefined}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
                 {gsmOptions.map((g) => {
                   const selected = g.id === gsm?.id;
                   return (
@@ -1037,7 +1037,7 @@ export function CustomStudio({
               </p>
             )}
 
-            <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-1 lg:grid-cols-2">
               <Button variant="secondary" size="lg" className="px-4" onClick={() => handleAdd(false)}>
                 {justAdded ? "Added ✓" : "Add to Cart"}
               </Button>
@@ -1055,7 +1055,7 @@ export function CustomStudio({
               </Link>
             )}
 
-            <ul className="mt-5 grid gap-1.5 text-xs text-background/70 sm:grid-cols-3">
+            <ul className="mt-5 grid gap-1.5 text-xs text-background/70 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-3">
               <li>✓ Front print included</li>
               <li>✓ Printed on order in Chennai</li>
               <li>✓ Ships in 3–7 business days</li>
