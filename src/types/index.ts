@@ -143,6 +143,9 @@ export interface Order {
   gateway_payment_method?: string | null;
   gateway_bank_reference?: string | null;
   paid_at?: string | null;
+  // Absent on databases that haven't run 0019_coupons.sql yet.
+  coupon_code?: string | null;
+  discount_amount?: number;
   created_at: string;
   updated_at: string;
 }
@@ -499,3 +502,16 @@ export interface CartPrint {
 }
 
 export type CartItem = ProductCartItem | CustomCartItem;
+
+/** A discount code the admin set up (0019_coupons.sql). */
+export interface Coupon {
+  id: string;
+  code: string;
+  percent_off: number;
+  is_active: boolean;
+  expires_at: string | null;
+  min_order_amount: number | null;
+  max_uses: number | null;
+  once_per_customer: boolean;
+  created_at: string;
+}

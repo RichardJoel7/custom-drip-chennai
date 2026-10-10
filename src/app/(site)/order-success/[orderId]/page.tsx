@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ClearOrderedItems, RefreshWhilePending, RetryPaymentButton } from "@/components/checkout/payment-return";
+import { YouMayLike } from "@/components/products/you-may-like";
 import { LinkButton } from "@/components/ui/button";
 import { cashfreeConfig, PAYMENT_WINDOW_MINUTES } from "@/lib/payments/cashfree";
 import { paymentMethodLabel } from "@/lib/payments/labels";
 import { formatPrice } from "@/lib/utils/format";
 import { getOrderByTrackingToken } from "@/services/orders";
+import { getActiveProducts } from "@/services/products";
 import { syncOnlinePayment, type OnlinePaymentState } from "@/services/payments";
 import { getSettings } from "@/services/settings";
 import type { OrderWithItems } from "@/types";
@@ -24,9 +26,10 @@ export default async function OrderSuccessPage({
   const back = buyNow
     ? { href: "/checkout?buy=now", label: "Back to Checkout" }
     : { href: "/cart", label: "Back to Cart" };
-  const [found, settings] = await Promise.all([
+  const [found, settings, products] = await Promise.all([
     t ? getOrderByTrackingToken(t) : Promise.resolve(null),
     getSettings(),
+    getActiveProducts(),
   ]);
 
   if (!found || !t) {
@@ -135,6 +138,9 @@ export default async function OrderSuccessPage({
 
       <div className="mt-8 space-y-4 border border-border p-5">
         <Row label="Order Number" value={order.order_number} />
+        {order.coupon_code && Number(order.discount_amount) > 0 && (
+          <Row label={`Coupon ${order.coupon_code}`} value={`−${formatPrice(Number(order.discount_amount))}`} />
+        )}
         <Row label="Total" value={formatPrice(order.total)} />
         <Row
           label="Payment"
@@ -169,6 +175,14 @@ export default async function OrderSuccessPage({
           Continue Shopping
         </Link>
       </div>
+
+      <YouMayLike
+        products={products}
+        basisProductIds={order.order_items.flatMap((item) => (item.product_id ? [item.product_id] : []))}
+        title="Complete the look"
+        limit={6}
+        className="mt-12"
+      />
     </div>
   );
 }
