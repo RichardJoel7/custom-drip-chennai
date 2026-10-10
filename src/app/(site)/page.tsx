@@ -26,10 +26,10 @@ export const metadata: Metadata = {
 };
 
 const HERO_SLIDES: HeroSlide[] = [
+  { desktopSrc: heroCustomize, mobileSrc: heroCustomizeMobile, href: "/customize", label: "Customize Yourself" },
   { desktopSrc: heroShop, mobileSrc: heroShopMobile, href: "/shop", label: "Shop" },
   { desktopSrc: heroMen, mobileSrc: heroMenMobile, href: "/shop?gender=men", label: "Shop Men's" },
   { desktopSrc: heroWomen, mobileSrc: heroWomenMobile, href: "/shop?gender=women", label: "Shop Women's" },
-  { desktopSrc: heroCustomize, mobileSrc: heroCustomizeMobile, href: "/customize", label: "Customize Yourself" },
 ];
 
 export default async function HomePage() {
@@ -39,17 +39,17 @@ export default async function HomePage() {
     getCustomCatalog(),
   ]);
 
-  // The Custom Studio banner leads the carousel whenever the studio is open for orders.
+  // The Custom Studio banner closes the carousel whenever the studio is open for orders.
   const studio = studioHeroData(catalog, status);
   const slides: HeroSlide[] =
     studio.fromPrice !== null
       ? [
+          ...HERO_SLIDES,
           {
             content: <StudioBannerSlide tees={studio.tees} fromPrice={studio.fromPrice} />,
             href: "/customize",
             label: "Design your own tee in the Custom Studio",
           },
-          ...HERO_SLIDES,
         ]
       : HERO_SLIDES;
 
