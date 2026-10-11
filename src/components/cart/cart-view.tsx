@@ -44,6 +44,11 @@ export function CartView({
   }
 
   const inCart = lines.flatMap(({ item }) => (item.kind === "custom" ? [] : [item.productId]));
+  // Each tee's photo as it is today: the one saved in the cart can be out of date (a replaced
+  // photo, or a cart from before the photos moved to R2).
+  const photos = new Map(
+    products.map((p) => [p.id, (p.product_images.find((i) => i.is_main) ?? p.product_images[0])?.image_url])
+  );
   const shipping = calculateShipping(subtotal, settings);
   const total = subtotal + shipping;
   const shortfall =
@@ -60,7 +65,12 @@ export function CartView({
 
             <div className="mt-4">
               {lines.map(({ item, unitPrice }) => (
-                <CartItemRow key={cartLineKey(item)} item={item} unitPrice={unitPrice} />
+                <CartItemRow
+                  key={cartLineKey(item)}
+                  item={item}
+                  unitPrice={unitPrice}
+                  photo={item.kind === "custom" ? undefined : photos.get(item.productId)}
+                />
               ))}
             </div>
 

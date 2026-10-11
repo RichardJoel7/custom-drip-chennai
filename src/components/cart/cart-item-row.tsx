@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useCart } from "@/components/cart/cart-context";
 import { GarmentMockup } from "@/components/custom/garment-mockup";
 import { SIDE_NAMES, cartLineKey, printDisplayName } from "@/lib/custom/pricing";
+import { isStoredFileUrl } from "@/lib/storage/files";
 import { formatPrice } from "@/lib/utils/format";
 import type { CartItem, CustomCartItem, ProductCartItem } from "@/types";
 
@@ -13,16 +14,20 @@ import type { CartItem, CustomCartItem, ProductCartItem } from "@/types";
 // (e.g. local dev vs. production) or whose photo was since removed can leave a stale image
 // URL behind. next/image throws rather than failing gracefully for an unconfigured host, so
 // both cases are guarded here instead of letting a bad thumbnail crash the whole cart page.
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_STORAGE_URL = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/storage/v1/object/public/`;
+const canShowImage = (url: string) => isStoredFileUrl(url) || url.startsWith(SUPABASE_STORAGE_URL);
 
-/** unitPrice: today's price (custom tees are re-priced); null = no longer available. */
-export function CartItemRow({ item, unitPrice }: { item: CartItem; unitPrice: number | null }) {
+/**
+ * unitPrice: today's price (custom tees are re-priced); null = no longer available.
+ * photo: the tee's main photo today, shown in place of the one saved in the cart.
+ */
+export function CartItemRow({ item, unitPrice, photo }: { item: CartItem; unitPrice: number | null; photo?: string }) {
   const { updateQuantity, removeItem } = useCart();
   const lineKey = cartLineKey(item);
 
   return (
     <div className="flex gap-4 border-b border-border py-4">
-      {item.kind === "custom" ? <CustomThumb item={item} /> : <ProductThumb item={item} />}
+      {item.kind === "custom" ? <CustomThumb item={item} /> : <ProductThumb item={item} photo={photo} />}
 
       <div className="flex flex-1 flex-col justify-between gap-2">
         <div>
@@ -102,15 +107,16 @@ export function CartItemRow({ item, unitPrice }: { item: CartItem; unitPrice: nu
   );
 }
 
-function ProductThumb({ item }: { item: ProductCartItem }) {
+function ProductThumb({ item, photo }: { item: ProductCartItem; photo?: string }) {
   const [imageFailed, setImageFailed] = useState(false);
-  const showImage = !!item.image && item.image.startsWith(SUPABASE_URL) && !imageFailed;
+  const src = photo && canShowImage(photo) ? photo : item.image;
+  const showImage = !!src && canShowImage(src) && !imageFailed;
 
   return (
     <Link href={`/product/${item.slug}`} className="relative h-24 w-20 flex-none overflow-hidden rounded-lg bg-muted">
       {showImage && (
         <Image
-          src={item.image}
+          src={src}
           alt={item.name}
           fill
           sizes="80px"
