@@ -5,11 +5,12 @@ import type { ProductWithDetails } from "@/types";
 
 export type ShopSort = "featured" | "newest" | "price-asc" | "price-desc";
 
-export const SHOP_SORTS: { value: ShopSort; label: string }[] = [
-  { value: "featured", label: "Featured" },
-  { value: "newest", label: "Newest" },
-  { value: "price-asc", label: "Price: low to high" },
-  { value: "price-desc", label: "Price: high to low" },
+/** `short` fits the Sort button on a phone; the menu shows `label`. */
+export const SHOP_SORTS: { value: ShopSort; label: string; short: string }[] = [
+  { value: "featured", label: "Featured", short: "Featured" },
+  { value: "newest", label: "Newest", short: "Newest" },
+  { value: "price-asc", label: "Price: low to high", short: "Price ↑" },
+  { value: "price-desc", label: "Price: high to low", short: "Price ↓" },
 ];
 
 export interface ShopFilters {
