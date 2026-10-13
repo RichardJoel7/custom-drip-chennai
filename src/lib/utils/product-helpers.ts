@@ -20,9 +20,13 @@ export function availableColorsForProduct(product: ProductWithDetails): string[]
 }
 
 export function availableSizesForProduct(product: ProductWithDetails): string[] {
+  return sortSizes(Array.from(new Set(product.product_variants.map((v) => v.size))));
+}
+
+/** S, M, L, XL, XXL first, in that order; any other sizes after them, A–Z. */
+export function sortSizes(sizes: string[]): string[] {
   const order = COMMON_SIZES as readonly string[];
-  const sizes = Array.from(new Set(product.product_variants.map((v) => v.size)));
-  return sizes.sort((a, b) => {
+  return [...sizes].sort((a, b) => {
     const ai = order.indexOf(a);
     const bi = order.indexOf(b);
     if (ai === -1 && bi === -1) return a.localeCompare(b);
