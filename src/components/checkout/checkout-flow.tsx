@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { clearBuyNowItem, useBuyNowItem } from "@/components/cart/buy-now";
 import { useCart } from "@/components/cart/cart-context";
@@ -12,6 +12,7 @@ import { QuickAddRow } from "@/components/products/quick-add-row";
 import { StateCityFields } from "@/components/checkout/state-city-fields";
 import { UpiPaymentPanel } from "@/components/checkout/upi-payment-panel";
 import { checkCoupon, saveCheckoutDetails, type AppliedCoupon } from "@/app/(site)/checkout/actions";
+import { trackAddPaymentInfo, trackBeginCheckout, trackedCartItem } from "@/lib/analytics/track";
 import { describePrints, printDisplayName } from "@/lib/custom/pricing";
 import { canonicalLocation } from "@/lib/data/india-locations";
 import { openCashfreeCheckout } from "@/lib/payments/cashfree-checkout";
@@ -110,7 +111,7 @@ export function CheckoutFlow({
   const buyNowItem = useBuyNowItem();
   // without the item (e.g. a Buy Now link opened in a new tab), it's the cart as usual
   const single = useMemo(() => (buyNow && buyNowItem ? [buyNowItem] : null), [buyNow, buyNowItem]);
-  const { items, subtotal, hasUnavailable, isHydrated } = usePricedCart(catalog, single);
+  const { items, lines, subtotal, hasUnavailable, isHydrated } = usePricedCart(catalog, single);
   const router = useRouter();
 
   const [step, setStep] = useState<Step>("details");
@@ -130,6 +131,16 @@ export function CheckoutFlow({
   const [couponInput, setCouponInput] = useState("");
   const [couponError, setCouponError] = useState<string | null>(null);
   const [checkingCoupon, setCheckingCoupon] = useState(false);
+
+  const trackedItems = () => lines.map(({ item, unitPrice }) => trackedCartItem(item, unitPrice));
+
+  // Counted once, when the checkout first shows what's being bought.
+  const checkoutCounted = useRef(false);
+  useEffect(() => {
+    if (!isHydrated || lines.length === 0 || checkoutCounted.current) return;
+    checkoutCounted.current = true;
+    trackBeginCheckout(lines.map(({ item, unitPrice }) => trackedCartItem(item, unitPrice)));
+  }, [isHydrated, lines]);
 
   // Each step starts at the top: the details form is long and the payment step short, so
   // staying at the same scroll position would leave the Pay button off-screen above.
@@ -203,6 +214,7 @@ export function CheckoutFlow({
     }
     setErrors({});
     setStep("payment");
+    trackAddPaymentInfo(trackedItems(), total);
 
     // Saving is a convenience — it never blocks paying.
     if (saveForLater) {

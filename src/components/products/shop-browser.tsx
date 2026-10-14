@@ -14,6 +14,7 @@ import {
   type ShopFilters,
   type ShopSort,
 } from "@/lib/products/shop-filters";
+import { trackSearch } from "@/lib/analytics/track";
 import { cn } from "@/lib/utils/cn";
 import { getColorSwatch } from "@/lib/utils/color-swatch";
 import type { ProductWithDetails } from "@/types";
@@ -48,6 +49,19 @@ export function ShopBrowser({ products, initial }: { products: ProductWithDetail
     }, 300);
     return () => clearTimeout(timer);
   }, [filters]);
+
+  // What people search for (and don't find) tells you what to print next: counted once they
+  // stop typing, once per word.
+  const lastSearch = useRef("");
+  useEffect(() => {
+    const term = filters.q.trim().toLowerCase();
+    if (term.length < 3 || term === lastSearch.current) return;
+    const timer = setTimeout(() => {
+      lastSearch.current = term;
+      trackSearch(term);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [filters.q]);
 
   const set = (patch: Partial<ShopFilters>) => setFilters((f) => ({ ...f, ...patch }));
   const closePanel = useCallback(() => setPanelOpen(false), []);
