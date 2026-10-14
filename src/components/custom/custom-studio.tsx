@@ -2,7 +2,17 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-context";
 import { BUY_NOW_CHECKOUT, setBuyNowItem } from "@/components/cart/buy-now";
@@ -66,6 +76,9 @@ import type {
 } from "@/types";
 
 type GenderFilter = "all" | Exclude<GarmentGender, "unisex">;
+
+/** The steps, which phones show one at a time as tabs under the pinned preview. */
+type StudioTab = "garment" | "colour" | "fabric" | "prints" | "design" | "size";
 
 /**
  * One print the customer has picked. A "custom" print is any size, anywhere (its own box in
@@ -134,11 +147,18 @@ function defaultSizeId(sizes: CustomTeeSize[]) {
   return (sizes.find((s) => s.label.toUpperCase() === "L") ?? sizes[Math.floor(sizes.length / 2)])?.id ?? "";
 }
 
-/** On phones the preview is far above the steps — bring it back so a change is seen. */
-function scrollToPreview(ref: RefObject<HTMLDivElement | null>) {
-  if (window.matchMedia("(max-width: 1023px)").matches) {
-    requestAnimationFrame(() => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
+// Phones (below Tailwind's md) get a small preview pinned under the header, with the steps
+// as tabs under it, so every change shows without scrolling back up.
+const PHONE_QUERY = "(max-width: 767px)";
+
+function subscribePhone(onChange: () => void) {
+  const query = window.matchMedia(PHONE_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function usePhoneLayout() {
+  return useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE_QUERY).matches, () => false);
 }
 
 /** The studio starts on one print: a custom print on the front (else a fixed front print, else the back). */
@@ -293,9 +313,13 @@ export function CustomStudio({
   const [uploads, setUploads] = useState(initialUploads);
   const [attempted, setAttempted] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
+  const [tab, setTab] = useState<StudioTab>(() => (init.choosingFor ? "design" : garments.length > 1 ? "garment" : "colour"));
+  const isPhone = usePhoneLayout();
 
   const previewRef = useRef<HTMLDivElement>(null);
   const designStepRef = useRef<HTMLElement>(null);
+  const stepsRef = useRef<HTMLDivElement>(null);
+  const tabListRef = useRef<HTMLDivElement>(null);
 
   // The draft has done its job once restored — drop it from the address bar.
   useEffect(() => {
@@ -335,6 +359,45 @@ export function CustomStudio({
     if (noDesign > 0) list.push(noDesign === 1 ? "a design for your print" : `designs for ${noDesign} prints`);
     return list;
   }, [gsmOptions.length, gsm, prints]);
+
+  // Phone tabs, each showing what's chosen; `invalid` ones get a red dot after a try to add.
+  const noDesignCount = prints.filter((p) => !p.design).length;
+  const tabs = (
+    [
+      garments.length > 1 ? { id: "garment", label: "Garment", value: garment?.name ?? "—" } : null,
+      { id: "colour", label: "Colour", value: color?.name ?? "—" },
+      gsmOptions.length > 0 ? { id: "fabric", label: "Fabric", value: gsm ? gsmLabel(gsm.gsm) : "Choose", invalid: !gsm } : null,
+      { id: "prints", label: "Prints", value: prints.length === 0 ? "Choose" : `${prints.length} added`, invalid: prints.length === 0 },
+      {
+        id: "design",
+        label: prints.length > 1 ? "Designs" : "Design",
+        value: prints.length === 0 ? "—" : noDesignCount === 0 ? "✓ Done" : prints.length === 1 ? "Choose" : `${noDesignCount} to pick`,
+        invalid: prints.length > 0 && noDesignCount > 0,
+      },
+      { id: "size", label: "Size & qty", value: `${size?.label ?? "—"} · ${quantity}` },
+    ] satisfies ({ id: StudioTab; label: string; value: string; invalid?: boolean } | null)[]
+  ).filter((t) => t !== null);
+  const activeTab = tabs.some((t) => t.id === tab) ? tab : tabs[0].id;
+
+  function goToTab(next: StudioTab) {
+    setTab(next);
+    // A long step may have been scrolled under the preview: start the new one at its top.
+    requestAnimationFrame(() => {
+      const steps = stepsRef.current;
+      const preview = previewRef.current;
+      if (!steps || !preview) return;
+      const hidden = preview.getBoundingClientRect().bottom - steps.getBoundingClientRect().top;
+      if (hidden > 0) window.scrollBy({ top: -(hidden + 16), behavior: "smooth" });
+    });
+  }
+
+  // Keep the chosen tab in sight in the sideways-scrolling tab row.
+  useEffect(() => {
+    const list = tabListRef.current;
+    const button = list?.querySelector<HTMLElement>(`[data-tab="${activeTab}"]`);
+    if (!list || !button) return;
+    list.scrollTo({ left: button.offsetLeft - (list.clientWidth - button.offsetWidth) / 2, behavior: "smooth" });
+  }, [activeTab]);
 
   /** Where a print is drawn on its side, in viewBox units. */
   const rectOf = useCallback(
@@ -400,11 +463,9 @@ export function CustomStudio({
     if (!added) return;
     setPrints(sortPrints([...prints, added], printOptions));
     changeView(side);
-    // A new custom print is ready to drag straight away.
-    if (!option) {
-      setActiveKey(key);
-      scrollToPreview(previewRef);
-    }
+    // A new custom print is ready to drag straight away. Phones show it on the pinned preview
+    // instead, and the customer taps the preview to adjust it.
+    if (!option && !isPhone) setActiveKey(key);
   }
 
   const updatePrint = useCallback((key: string, patch: Partial<StudioPrint>) => {
@@ -414,8 +475,16 @@ export function CustomStudio({
   function startAdjusting(key: string) {
     setActiveKey(key);
     setView(sideOfKey(key));
-    scrollToPreview(previewRef);
   }
+
+  // Adjusting a print uses the full-size preview: bring it into view if it's off screen (on
+  // phones the pinned preview grows back to full size in its place above the steps).
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!activeKey || !preview) return;
+    const top = preview.getBoundingClientRect().top;
+    if (top < 0 || top > window.innerHeight * 0.4) preview.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [activeKey]);
 
   const editor: MockupEditor = useMemo(
     () => ({
@@ -466,7 +535,6 @@ export function CustomStudio({
       applyDesign(hub.key, design);
       setView(sideOfKey(hub.key));
       setHub(null);
-      scrollToPreview(previewRef);
     },
     [hub, applyDesign]
   );
@@ -561,7 +629,9 @@ export function CustomStudio({
     const item = buildCartItem();
     if (!item) {
       setAttempted(true);
-      designStepRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const firstMissing = tabs.find((t) => t.invalid);
+      if (isPhone && firstMissing) goToTab(firstMissing.id);
+      else designStepRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     setActiveKey(null);
@@ -630,14 +700,48 @@ export function CustomStudio({
   const hubPrint = hub ? prints.find((p) => printKey(p) === hub.key) : undefined;
   const printName = (p: StudioPrint) => (p.kind === "custom" ? "Custom size" : optionOf(p.printOptionId)?.name ?? "Print");
 
+  // Phones, while no print is being adjusted: the preview is small and pinned, the steps are tabs.
+  const compact = !activePrint;
+  const tapToAdjust = isPhone && compact;
+  const viewPrints = prints.filter((p) => p.side === view);
+  /** Phones: each side's photo is sized by height (--mockup-h), so the preview fits the screen. */
+  const sideBox = (side: PrintSide) => ({ "--side-aspect": String(spec?.[side].aspect ?? 0.8) }) as CSSProperties;
+  const stepOnPhone = (id: StudioTab) => {
+    const next = tabs[tabs.findIndex((t) => t.id === id) + 1];
+    return { phoneHidden: !compact || activeTab !== id, next: next ? { label: next.label, tab: next.id } : undefined };
+  };
+
   return (
     <>
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)] lg:gap-12">
+      <div className="flex flex-col gap-4 md:grid md:grid-cols-2 md:gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)] lg:gap-12">
         {/* PREVIEW */}
-        <div ref={previewRef} className="scroll-mt-24 md:sticky md:top-24 md:self-start">
-          <div className="relative overflow-hidden rounded-[2rem] border border-border bg-[radial-gradient(circle_at_50%_32%,#ffffff_0%,#f1f1ee_55%,#e6e6e2_100%)] p-4 sm:p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex rounded-full border border-border bg-background p-1" role="tablist" aria-label="Preview side">
+        <div
+          ref={previewRef}
+          className={cn(
+            "scroll-mt-24 md:sticky md:top-24 md:self-start",
+            compact &&
+              "max-md:sticky max-md:top-[76px] max-md:z-20 max-md:-mx-4 max-md:bg-background max-md:px-4 max-md:pb-2 max-md:shadow-[0_12px_12px_-14px_rgb(0_0_0/0.35)] sm:max-md:top-20 sm:max-md:-mx-6 sm:max-md:px-6"
+          )}
+        >
+          <div
+            className={cn(
+              "relative overflow-hidden rounded-[2rem] border border-border bg-[radial-gradient(circle_at_50%_32%,#ffffff_0%,#f1f1ee_55%,#e6e6e2_100%)] p-4 sm:p-6",
+              // phones: the photo's height — small while pinned; while adjusting, as big as still
+              // leaves the size slider and Done on screen
+              compact ? "[--mockup-h:clamp(150px,27svh,300px)] max-md:rounded-3xl max-md:p-2" : "[--mockup-h:max(220px,calc(100svh-370px))]"
+            )}
+          >
+            <div
+              className={cn(
+                "flex items-center justify-between gap-3",
+                compact && "max-md:absolute max-md:left-2 max-md:top-2 max-md:z-10 max-md:flex-col max-md:items-start max-md:gap-2"
+              )}
+            >
+              <div
+                className={cn("flex rounded-full border border-border bg-background p-1", compact && "max-md:flex-col max-md:rounded-2xl")}
+                role="tablist"
+                aria-label="Preview side"
+              >
                 {PRINT_SIDE_LIST.map((side) => (
                   <button
                     key={side}
@@ -647,6 +751,7 @@ export function CustomStudio({
                     onClick={() => changeView(side)}
                     className={cn(
                       "h-9 rounded-full px-4 text-xs font-semibold uppercase tracking-wide transition-colors",
+                      compact && "max-md:h-8 max-md:px-3 max-md:text-[11px]",
                       view === side ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
                     )}
                   >
@@ -659,7 +764,10 @@ export function CustomStudio({
                 role="switch"
                 aria-checked={showGuide}
                 onClick={() => setShowGuide((v) => !v)}
-                className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                className={cn(
+                  "flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground",
+                  compact && "max-md:flex-col max-md:items-start max-md:gap-1 max-md:pl-1 max-md:text-[10px]"
+                )}
               >
                 <span className={cn("relative h-5 w-9 rounded-full transition-colors", showGuide ? "bg-foreground" : "bg-border")}>
                   <span
@@ -675,20 +783,37 @@ export function CustomStudio({
 
             {/* Both sides share one grid cell, so the preview is as tall as the taller photo (a back
                 photo can be longer than the front) and never spills over what's below it. */}
-            <div className="mx-auto mt-2 max-w-xl perspective-[1600px]">
+            <div className={cn("relative mx-auto mt-2 max-w-xl perspective-[1600px]", compact && "max-md:mt-0")}>
               <div
                 className={cn(
                   "grid transition-transform duration-700 ease-[cubic-bezier(0.2,0.7,0.2,1)] transform-3d",
                   view === "back" && "rotate-y-180"
                 )}
               >
-                <div className={cn("backface-hidden [grid-area:1/1]", view !== "front" && "pointer-events-none")}>
-                  {mockupFor("front", { editable: view === "front" })}
-                </div>
-                <div className={cn("rotate-y-180 backface-hidden [grid-area:1/1]", view !== "back" && "pointer-events-none")}>
-                  {mockupFor("back", { editable: view === "back" })}
-                </div>
+                {PRINT_SIDE_LIST.map((side) => (
+                  <div
+                    key={side}
+                    style={sideBox(side)}
+                    className={cn(
+                      "backface-hidden [grid-area:1/1]",
+                      side === "back" && "rotate-y-180",
+                      view !== side && "pointer-events-none",
+                      "max-md:mx-auto max-md:w-full max-md:max-w-[calc(var(--mockup-h)*var(--side-aspect))]"
+                    )}
+                  >
+                    {/* Phones drag prints on the full-size preview, not the small pinned one. */}
+                    {mockupFor(side, { editable: view === side && !tapToAdjust })}
+                  </div>
+                ))}
               </div>
+              {tapToAdjust && viewPrints.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => startAdjusting(printKey(viewPrints[0]))}
+                  className="absolute inset-0"
+                  aria-label="Move or resize your print"
+                />
+              )}
             </div>
 
             {activePrint && spec && activePrint.kind === "custom" && activePrint.rect ? (
@@ -710,8 +835,9 @@ export function CustomStudio({
                 onDone={() => setActiveKey(null)}
               />
             ) : (
-              <div className="mt-2 space-y-2">
-                <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-semibold">
+              <div className="mt-2 space-y-2 max-md:mt-1 max-md:space-y-1">
+                {/* Phones show these in the tabs instead. */}
+                <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-semibold max-md:hidden">
                   {garments.length > 1 && garment && (
                     <span className="rounded-full bg-foreground px-3 py-1.5 text-background">{garment.name}</span>
                   )}
@@ -729,8 +855,11 @@ export function CustomStudio({
                     </span>
                   )}
                 </div>
-                {prints.some((p) => p.side === view) && (
-                  <p className="text-center text-xs text-muted-foreground">Tap a print to move or resize it.</p>
+                {viewPrints.length > 0 && (
+                  <p className="text-center text-xs text-muted-foreground max-md:text-[11px]">
+                    <span className="max-md:hidden">Tap a print to move or resize it.</span>
+                    <span className="md:hidden">Tap the preview to move or resize your print.</span>
+                  </p>
                 )}
                 {overlappingSides.includes(view) && (
                   <p className="text-center text-xs font-semibold text-amber-700" role="status">
@@ -744,7 +873,7 @@ export function CustomStudio({
               <button
                 type="button"
                 onClick={() => changeView(view === "front" ? "back" : "front")}
-                className="absolute bottom-24 right-4 w-20 rounded-2xl border border-border bg-background/90 p-1.5 shadow-lg backdrop-blur transition-transform hover:scale-105 sm:bottom-28 sm:right-6 sm:w-24"
+                className="absolute bottom-24 right-4 z-10 w-20 rounded-2xl border border-border bg-background/90 p-1.5 shadow-lg backdrop-blur transition-transform hover:scale-105 max-md:bottom-8 max-md:right-2 max-md:w-14 max-md:p-1 sm:bottom-28 sm:right-6 sm:w-24"
                 aria-label={`Show the ${view === "front" ? "back" : "front"}`}
               >
                 {mockupFor(view === "front" ? "back" : "front", { guide: false, imageWidth: 256 })}
@@ -754,12 +883,56 @@ export function CustomStudio({
               </button>
             )}
           </div>
+
+          {/* PHONE TABS: pinned with the preview; the chosen step shows below. */}
+          {compact && (
+            <div
+              ref={tabListRef}
+              role="tablist"
+              aria-label="Design steps"
+              className="no-scrollbar relative -mx-4 mt-2 flex gap-2 overflow-x-auto px-4 sm:-mx-6 sm:px-6 md:hidden"
+            >
+              {tabs.map((t) => {
+                const selected = t.id === activeTab;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    data-tab={t.id}
+                    aria-selected={selected}
+                    aria-controls="studio-steps"
+                    onClick={() => goToTab(t.id)}
+                    className={cn(
+                      "relative flex-none rounded-2xl border px-3.5 py-1.5 text-left transition-colors",
+                      selected ? "border-foreground bg-foreground text-background" : "border-border bg-background"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "block text-[10px] font-semibold uppercase tracking-wide",
+                        selected ? "text-background/70" : "text-muted-foreground"
+                      )}
+                    >
+                      {t.label}
+                    </span>
+                    <span className="block max-w-32 truncate text-xs font-semibold">{t.value}</span>
+                    {attempted && t.invalid && (
+                      <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger">
+                        <span className="sr-only">needs a choice</span>
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* STEPS */}
-        <div className="space-y-4">
+        <div ref={stepsRef} id="studio-steps" className="space-y-4">
           {garments.length > 1 && (
-            <Step index={nextStep()} title="Garment" aside={garment?.name}>
+            <Step index={nextStep()} title="Garment" aside={garment?.name} {...stepOnPhone("garment")} onNext={goToTab}>
               <GarmentPicker
                 catalog={catalog}
                 garments={garments}
@@ -771,7 +944,7 @@ export function CustomStudio({
             </Step>
           )}
 
-          <Step index={nextStep()} title="Colour" aside={color?.name}>
+          <Step index={nextStep()} title="Colour" aside={color?.name} {...stepOnPhone("colour")} onNext={goToTab}>
             <div className="flex flex-wrap gap-3">
               {colors.map((c) => (
                 <button
@@ -794,7 +967,7 @@ export function CustomStudio({
           </Step>
 
           {gsmOptions.length > 0 && (
-            <Step index={nextStep()} title="Fabric weight" aside={gsm ? gsmLabel(gsm.gsm) : undefined}>
+            <Step index={nextStep()} title="Fabric weight" aside={gsm ? gsmLabel(gsm.gsm) : undefined} {...stepOnPhone("fabric")} onNext={goToTab}>
               <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
                 {gsmOptions.map((g) => {
                   const selected = g.id === gsm?.id;
@@ -827,6 +1000,8 @@ export function CustomStudio({
             title="Prints"
             aside={prints.length > 0 ? `${prints.length} selected` : undefined}
             invalid={attempted && prints.length === 0}
+            {...stepOnPhone("prints")}
+            onNext={goToTab}
           >
             <p className="-mt-1 mb-4 text-sm text-muted-foreground">
               Front prints are included in the price — place a custom-size print anywhere, and add a chest print or
@@ -895,6 +1070,8 @@ export function CustomStudio({
             title={prints.length > 1 ? "Your designs" : "Your design"}
             innerRef={designStepRef}
             invalid={attempted && prints.some((p) => !p.design)}
+            {...stepOnPhone("design")}
+            onNext={goToTab}
           >
             {prints.length === 0 ? (
               <p className="text-sm text-muted-foreground">Choose a print above, then pick its design here.</p>
@@ -948,7 +1125,7 @@ export function CustomStudio({
             )}
           </Step>
 
-          <Step index={nextStep()} title="Size & quantity" aside={size ? `Size ${size.label}` : undefined}>
+          <Step index={nextStep()} title="Size & quantity" aside={size ? `Size ${size.label}` : undefined} {...stepOnPhone("size")} onNext={goToTab}>
             <div className="flex flex-wrap gap-2">
               {sizes.map((s) => (
                 <button
@@ -1079,10 +1256,14 @@ export function CustomStudio({
             <p key={total ?? "none"} className="text-lg font-bold leading-tight animate-[price-pop_0.3s_ease-out]">
               {total === null ? "—" : formatPrice(total)}
             </p>
-            <p className="truncate text-xs text-muted-foreground">
-              {quantity} × {gsm ? `${gsmLabel(gsm.gsm)} · ` : ""}
-              {prints.length === 0 ? "no print yet" : `${prints.length} print${prints.length === 1 ? "" : "s"}`}
-            </p>
+            {attempted && missing.length > 0 ? (
+              <p className="truncate text-xs font-semibold text-danger">Choose {missing.join(" and ")}</p>
+            ) : (
+              <p className="truncate text-xs text-muted-foreground">
+                {quantity} × {gsm ? `${gsmLabel(gsm.gsm)} · ` : ""}
+                {prints.length === 0 ? "no print yet" : `${prints.length} print${prints.length === 1 ? "" : "s"}`}
+              </p>
+            )}
           </div>
           <Button size="md" className="px-5" onClick={() => handleAdd(false)}>
             {justAdded ? "Added ✓" : "Add to Cart"}
@@ -1434,6 +1615,9 @@ function Step({
   aside,
   invalid,
   innerRef,
+  phoneHidden,
+  next,
+  onNext,
   children,
 }: {
   index: string;
@@ -1441,6 +1625,11 @@ function Step({
   aside?: string;
   invalid?: boolean;
   innerRef?: RefObject<HTMLElement | null>;
+  /** Phones show one step at a time: this one isn't the open tab. */
+  phoneHidden?: boolean;
+  /** Phones: the button to the next tab. */
+  next?: { label: string; tab: StudioTab };
+  onNext?: (tab: StudioTab) => void;
   children: ReactNode;
 }) {
   return (
@@ -1448,10 +1637,13 @@ function Step({
       ref={innerRef}
       className={cn(
         "scroll-mt-24 rounded-3xl border p-5 transition-colors sm:p-6",
-        invalid ? "border-danger ring-1 ring-danger" : "border-border"
+        invalid ? "border-danger ring-1 ring-danger" : "border-border",
+        // phones: a tab's content, straight under the pinned preview (the tab shows the title)
+        "max-md:rounded-none max-md:border-0 max-md:p-0 max-md:pt-1 max-md:ring-0",
+        phoneHidden && "max-md:hidden"
       )}
     >
-      <div className="mb-4 flex items-baseline justify-between gap-3">
+      <div className="mb-4 flex items-baseline justify-between gap-3 max-md:hidden">
         <h3 className="flex items-baseline gap-3 font-display text-lg tracking-wide">
           <span className="text-sm text-muted-foreground">{index}</span>
           {title.toUpperCase()}
@@ -1459,6 +1651,15 @@ function Step({
         {aside && <span className="text-sm font-semibold text-muted-foreground">{aside}</span>}
       </div>
       {children}
+      {next && onNext && (
+        <button
+          type="button"
+          onClick={() => onNext(next.tab)}
+          className="mt-5 flex h-12 w-full items-center justify-center rounded-full border border-foreground text-xs font-semibold uppercase tracking-wide md:hidden"
+        >
+          Next: {next.label} →
+        </button>
+      )}
     </section>
   );
 }

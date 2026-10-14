@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { useCallback, useId, useMemo, useRef, useSyncExternalStore } from "react";
 import {
   MIN_PRINT_SCALE,
   PHOTO_VIEW_WIDTH,
@@ -59,6 +59,84 @@ export function GarmentMockup({ spec, colorPhotos, ...props }: GarmentMockupProp
   return <PhotoMockup spec={spec} colorPhoto={colorPhotos?.[props.view] ?? null} {...props} />;
 }
 
+// --- colouring a white garment photo ----------------------------------------------------------
+// The colour is laid on the garment's shape, then the photo's light and shade go over it. The
+// shade is measured against the photo's own usual brightness (`level`), so plain fabric shows
+// exactly the chosen colour, folds darken it in proportion and the brightest spots add a soft
+// sheen — whatever the colour, light or dark.
+
+/** How strongly folds and sheen show (1 = as in the white photo). */
+const SHADE_CONTRAST = 1.5;
+/** Until the photo has been measured: a typical white garment photo. */
+const DEFAULT_LEVEL = 0.9;
+
+/** The shading filter's curve: photo brightness 0–1 → grey, with `level` at exactly 50%. */
+function shadingCurve(level: number) {
+  const steps = 32;
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const brightness = i / steps;
+    const grey = 0.5 + (SHADE_CONTRAST * 0.5 * (brightness - level)) / level;
+    return Math.min(1, Math.max(0, grey)).toFixed(3);
+  }).join(" ");
+}
+
+const photoLevels = new Map<string, number>();
+const measuring = new Set<string>();
+const levelListeners = new Set<() => void>();
+
+/** The fabric's usual brightness in a photo: the median of its solid (non-transparent) pixels. */
+function measurePhotoLevel(url: string) {
+  if (photoLevels.has(url) || measuring.has(url)) return;
+  measuring.add(url);
+  const img = new window.Image();
+  img.onload = () => {
+    try {
+      const scale = Math.min(1, 160 / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const histogram = new Array<number>(256).fill(0);
+      let solid = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] < 250) continue;
+        histogram[Math.round(0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2])]++;
+        solid++;
+      }
+      if (solid < 50) return;
+      let seen = 0;
+      const median = histogram.findIndex((count) => (seen += count) >= solid / 2);
+      // a white or light-grey garment; anything darker isn't a photo to colour from
+      photoLevels.set(url, Math.min(0.98, Math.max(0.5, median / 255)));
+      levelListeners.forEach((listener) => listener());
+    } catch {
+      // unreadable (e.g. another site's image): keep the default
+    }
+  };
+  img.src = url;
+}
+
+function usePhotoLevel(url: string) {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      levelListeners.add(onChange);
+      measurePhotoLevel(url);
+      return () => {
+        levelListeners.delete(onChange);
+      };
+    },
+    [url]
+  );
+  return useSyncExternalStore(
+    subscribe,
+    () => photoLevels.get(url) ?? DEFAULT_LEVEL,
+    () => DEFAULT_LEVEL
+  );
+}
+
 type DragState = {
   key: string;
   mode: "move" | "resize";
@@ -97,6 +175,8 @@ function PhotoMockup({
   const width = PHOTO_VIEW_WIDTH;
   const height = width / side.aspect;
   const photo = optimizedImage(colorPhoto ?? side.imageUrl, imageWidth <= 256 ? 384 : 1080);
+  const level = usePhotoLevel(photo);
+  const curve = useMemo(() => shadingCurve(level), [level]);
   const light = isLightColor(colorHex);
   const guideStroke = light ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.8)";
   const fill = { width, height, preserveAspectRatio: "xMidYMid meet" } as const;
@@ -190,14 +270,17 @@ function PhotoMockup({
         <filter id={id("shadow")} x="-10%" y="-10%" width="120%" height="125%">
           <feDropShadow dx="0" dy="18" stdDeviation="20" floodColor="#000" floodOpacity="0.18" />
         </filter>
-        {/* keeps only the photo's brightest spots (above ~93%): the sheen on the fabric, not
-            the flat white of the blank garment, which would wash dark colours out */}
-        <filter id={id("highlights")} colorInterpolationFilters="sRGB">
-          <feColorMatrix type="saturate" values="0" />
+        {/* The photo's light and shade, as grey around 50%: the fabric's usual brightness is
+            exactly 50%, folds go darker, sheen lighter (see shadingCurve). */}
+        <filter id={id("shading")} colorInterpolationFilters="sRGB">
+          <feColorMatrix
+            type="matrix"
+            values="0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0 0 0 1 0"
+          />
           <feComponentTransfer>
-            <feFuncR type="linear" slope="10" intercept="-9.3" />
-            <feFuncG type="linear" slope="10" intercept="-9.3" />
-            <feFuncB type="linear" slope="10" intercept="-9.3" />
+            <feFuncR type="table" tableValues={curve} />
+            <feFuncG type="table" tableValues={curve} />
+            <feFuncB type="table" tableValues={curve} />
           </feComponentTransfer>
         </filter>
       </defs>
@@ -228,19 +311,16 @@ function PhotoMockup({
           )
       )}
 
+      {/* "Hard light" over the colour and prints: 50% grey leaves them as they are, darker grey
+          shades them (folds), lighter grey adds a sheen. */}
       {!colorPhoto && (
-        <g pointerEvents="none">
-          <image href={photo} {...fill} style={{ mixBlendMode: "multiply" }} />
-          {!light && (
-            <image
-              href={photo}
-              {...fill}
-              filter={`url(#${id("highlights")})`}
-              opacity={0.35}
-              style={{ mixBlendMode: "screen" }}
-            />
-          )}
-        </g>
+        <image
+          href={photo}
+          {...fill}
+          filter={`url(#${id("shading")})`}
+          pointerEvents="none"
+          style={{ mixBlendMode: "hard-light" }}
+        />
       )}
 
       {showGuide &&
