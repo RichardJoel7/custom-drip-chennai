@@ -17,7 +17,16 @@ function endDate(iso: string) {
 }
 
 /** Create coupon codes and switch them on/off. Customers enter them at checkout. */
-export function CouponsManager({ coupons, uses }: { coupons: AdminCoupon[]; uses: Record<string, number> }) {
+export function CouponsManager({
+  coupons,
+  uses,
+  owners = {},
+}: {
+  coupons: AdminCoupon[];
+  uses: Record<string, number>;
+  /** Influencer names by id, for codes that belong to one. */
+  owners?: Record<string, string>;
+}) {
   const router = useRouter();
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
@@ -171,6 +180,9 @@ export function CouponsManager({ coupons, uses }: { coupons: AdminCoupon[]; uses
                     <p className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-base font-bold tracking-wider">{coupon.code}</span>
                       <span className="font-semibold">{coupon.percent_off}% off</span>
+                      {coupon.influencer_id && owners[coupon.influencer_id] && (
+                        <Badge tone="neutral">{owners[coupon.influencer_id]}&apos;s code</Badge>
+                      )}
                       {expired ? (
                         <Badge tone="neutral">Ended</Badge>
                       ) : usedUp ? (

@@ -4,6 +4,7 @@ import { ProductGallery } from "@/components/products/product-gallery";
 import { JsonLd } from "@/components/seo/json-ld";
 import { breadcrumbSchema, productSchema } from "@/lib/seo/schema";
 import { ProductPurchasePanel } from "@/components/products/product-purchase-panel";
+import { TrackProductView } from "@/components/analytics/track-events";
 import {
   ProductDetailsAccordion,
   SizeGuideLink,
@@ -102,6 +103,7 @@ export default async function ProductPage({
           ]),
         ]}
       />
+      <TrackProductView item={{ id: product.id, name: product.name, price: product.price, quantity: 1 }} />
       <div className="grid gap-8 md:grid-cols-2 lg:gap-16">
         <ProductGallery images={product.product_images} productName={product.name} />
         <div>

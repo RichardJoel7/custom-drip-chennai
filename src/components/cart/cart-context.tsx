@@ -7,6 +7,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { trackAddToCart, trackedCartItem } from "@/lib/analytics/track";
 import { cartLineKey } from "@/lib/custom/pricing";
 import type { CartItem } from "@/types";
 
@@ -63,6 +64,7 @@ function getServerSnapshot(): CartItem[] {
 }
 
 function addItem(item: CartItem) {
+  trackAddToCart([trackedCartItem(item)]);
   const key = cartLineKey(item);
   const existing = cartItems.find((i) => cartLineKey(i) === key);
   if (existing) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { trackAddToCart, trackedCartItem } from "@/lib/analytics/track";
 import type { CartItem } from "@/types";
 
 // "Buy Now" checks out one item on its own and leaves the cart as it was. The item waits in
@@ -48,6 +49,7 @@ function subscribe(listener: () => void) {
 export const BUY_NOW_CHECKOUT = "/checkout?buy=now";
 
 export function setBuyNowItem(item: CartItem) {
+  trackAddToCart([trackedCartItem(item)]);
   write(item);
 }
 

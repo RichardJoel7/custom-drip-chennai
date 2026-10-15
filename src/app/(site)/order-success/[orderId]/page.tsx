@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { TrackPurchase } from "@/components/analytics/track-events";
 import { ClearOrderedItems, RefreshWhilePending, RetryPaymentButton } from "@/components/checkout/payment-return";
 import { YouMayLike } from "@/components/products/you-may-like";
 import { LinkButton } from "@/components/ui/button";
@@ -124,6 +125,21 @@ export default async function OrderSuccessPage({
   return (
     <div className="mx-auto max-w-lg px-4 py-10 sm:py-16">
       {paidOnline && <ClearOrderedItems buyNow={buyNow} />}
+      <TrackPurchase
+        order={{
+          orderNumber: order.order_number,
+          value: Number(order.total),
+          shipping: Number(order.shipping_fee),
+          coupon: order.coupon_code,
+          items: order.order_items.map((item) => ({
+            id: item.product_id ?? `custom-${item.custom_details?.garment?.id ?? "tee"}`,
+            name: item.product_name,
+            price: Number(item.unit_price),
+            quantity: item.quantity,
+            variant: `${item.color} / ${item.size}`,
+          })),
+        }}
+      />
       <div className="text-center">
         <p className="text-4xl">🎉</p>
         <h1 className="mt-2 font-display text-3xl tracking-wide sm:text-4xl">

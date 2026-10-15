@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPolicyPage() {
   return (
-    <PolicyPage title="PRIVACY POLICY" updated="30 September 2026">
+    <PolicyPage title="PRIVACY POLICY" updated="14 October 2026">
       <p>
         Custom Drip Chennai (&ldquo;we&rdquo;, &ldquo;us&rdquo;) runs this website to sell T-shirts and custom-printed
         garments. This policy explains what personal information we collect, why, and the choices you have. It is
@@ -41,6 +41,12 @@ export default function PrivacyPolicyPage() {
             <span className="font-semibold text-foreground">On your device:</span> a sign-in cookie that keeps you
             logged in, and your cart and wishlist choices saved in your browser.
           </li>
+          <li>
+            <span className="font-semibold text-foreground">How you use the shop:</span> Google Analytics and the
+            Meta Pixel use cookies to record which pages and products you view, what you add to your cart, and
+            completed purchases (the order number and amount), along with general device and browser information.
+            They don&apos;t receive your name, phone number, email or address.
+          </li>
         </ul>
         <p>
           We never see or store your card, UPI or bank details. Online payments are made on the secure page of our
@@ -54,6 +60,10 @@ export default function PrivacyPolicyPage() {
           <li>To confirm your payment, answer your questions and handle returns or exchanges.</li>
           <li>To send the sign-up and password codes that protect your account.</li>
           <li>To prevent fraud and keep the website secure.</li>
+          <li>
+            To understand which products and pages people like, improve the shop, and measure our Instagram and
+            Facebook ads.
+          </li>
           <li>To keep the records Indian tax and accounting laws require.</li>
         </ul>
         <p>We don&apos;t sell your information, and we don&apos;t use your uploaded designs for anything but your order.</p>
@@ -62,13 +72,30 @@ export default function PrivacyPolicyPage() {
       <PolicySection title="Who we share it with">
         <p>Only the services we need to run the store, and only what each one needs:</p>
         <ul className="list-disc space-y-1 pl-5">
-          <li>Our hosting and database providers (Vercel and Supabase), which store the website and your data.</li>
+          <li>
+            Our hosting, database and file storage providers (Hostinger, Supabase and Cloudflare), which run the
+            website and store your data.
+          </li>
           <li>
             Cashfree Payments, our payment partner, which receives your name, email, phone number and the order amount to
             process your payment.
           </li>
           <li>Google, if you choose to sign in with Google, and our email provider for order emails.</li>
           <li>Courier partners, who receive your name, phone number and address to deliver your parcel.</li>
+          <li>
+            Google (Google Analytics) and Meta (Facebook and Instagram), which receive the shop activity described
+            above to give us visitor statistics and measure our ads. You can block these cookies in your browser
+            settings, or use Google&apos;s{" "}
+            <a
+              href="https://tools.google.com/dlpage/gaoptout"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-foreground underline underline-offset-4"
+            >
+              Analytics opt-out
+            </a>{" "}
+            and your Facebook/Instagram ad settings.
+          </li>
           <li>Government authorities, if the law requires it.</li>
         </ul>
       </PolicySection>
