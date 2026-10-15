@@ -19,10 +19,13 @@ export function SiteHeader({
   instagramUrl,
   shopMenu,
   wishlistCount,
+  isInfluencer = false,
 }: {
   instagramUrl: string;
   shopMenu: ShopMenu;
   wishlistCount: number;
+  /** Signed in with an influencer's email: show the link to their dashboard. */
+  isInfluencer?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileShopOpen, setMobileShopOpen] = useState(false);
@@ -61,6 +64,14 @@ export function SiteHeader({
           <Link href="/contact" className="text-sm font-semibold uppercase tracking-wide transition-opacity hover:opacity-70">
             Contact
           </Link>
+          {isInfluencer && (
+            <Link
+              href="/influencer"
+              className="rounded-full bg-accent px-3 py-1 text-xs font-bold uppercase tracking-wide text-accent-foreground transition-opacity hover:opacity-80"
+            >
+              Influencer
+            </Link>
+          )}
         </nav>
 
         {/* As wide as the icons on the right, so the logo sits in the true centre. */}
@@ -94,7 +105,7 @@ export function SiteHeader({
 
         <div className="flex flex-1 items-center justify-end gap-1">
           <div className="hidden sm:flex">
-            <ProfileMenu user={user} />
+            <ProfileMenu user={user} isInfluencer={isInfluencer} />
           </div>
           <Link
             href="/wishlist"
@@ -199,6 +210,18 @@ export function SiteHeader({
           </Link>
           {user ? (
             <>
+              {isInfluencer && (
+                <Link
+                  href="/influencer"
+                  onClick={closeMobileMenu}
+                  className="flex items-center justify-between border-b border-white/15 py-4 text-base font-semibold uppercase tracking-wide"
+                >
+                  Influencer Dashboard
+                  <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold tracking-wider text-accent-foreground">
+                    YOU
+                  </span>
+                </Link>
+              )}
               <Link
                 href="/account/orders"
                 onClick={closeMobileMenu}
@@ -366,7 +389,13 @@ function MobileGenderAccordion({
   );
 }
 
-function ProfileMenu({ user }: { user: import("@supabase/supabase-js").User | null }) {
+function ProfileMenu({
+  user,
+  isInfluencer,
+}: {
+  user: import("@supabase/supabase-js").User | null;
+  isInfluencer: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
@@ -401,6 +430,15 @@ function ProfileMenu({ user }: { user: import("@supabase/supabase-js").User | nu
             {user ? (
               <>
                 <p className="truncate px-3 py-2 text-xs text-white/60">{user.email}</p>
+                {isInfluencer && (
+                  <Link
+                    href="/influencer"
+                    onClick={() => setOpen(false)}
+                    className="block rounded-xl px-3 py-2.5 text-sm font-semibold uppercase tracking-wide text-accent hover:bg-white/10"
+                  >
+                    Influencer
+                  </Link>
+                )}
                 <Link
                   href="/account/orders"
                   onClick={() => setOpen(false)}

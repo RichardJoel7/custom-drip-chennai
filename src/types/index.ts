@@ -145,6 +145,9 @@ export interface Order {
   paid_at?: string | null;
   // Absent on databases that haven't run 0019_coupons.sql yet.
   coupon_code?: string | null;
+  // 0020_influencers.sql
+  influencer_id?: string | null;
+  influencer_commission?: number | null;
   discount_amount?: number;
   created_at: string;
   updated_at: string;
@@ -513,5 +516,47 @@ export interface Coupon {
   min_order_amount: number | null;
   max_uses: number | null;
   once_per_customer: boolean;
+  /** The influencer whose code it is (0020_influencers.sql). */
+  influencer_id?: string | null;
   created_at: string;
+}
+
+/** A creator with their own coupon code(s) and commission terms (0020_influencers.sql). */
+export interface Influencer {
+  id: string;
+  name: string;
+  /** The email they sign in with to see their dashboard. */
+  email: string;
+  instagram: string | null;
+  /** % of what the customer paid for the items after the discount, excluding shipping. */
+  commission_percent: number;
+  /** ₹ per order, on top of (or instead of) the %. */
+  commission_fixed: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface InfluencerPayout {
+  id: string;
+  influencer_id: string;
+  amount: number;
+  /** "2026-10-31" */
+  paid_on: string;
+  note: string | null;
+  created_at: string;
+}
+
+/** One paid order on an influencer's code: no customer details. */
+export interface InfluencerOrder {
+  placedAt: string;
+  /** e.g. "CD-2026-00••" for the influencer; the full number for the admin. */
+  orderRef: string;
+  /** Admin only: the order's id, to link to it. */
+  orderId?: string;
+  couponCode: string | null;
+  /** What the customer paid for the items after the discount, excluding shipping. */
+  sale: number;
+  commission: number;
+  /** Payable once delivered. */
+  status: "earned" | "pending";
 }

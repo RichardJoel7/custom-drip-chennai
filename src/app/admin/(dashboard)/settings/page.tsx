@@ -26,6 +26,13 @@ export default async function AdminSettingsPage() {
             Manage coupons →
           </Link>
         </section>
+        <section className="border border-border p-4">
+          <h2 className="font-semibold">Influencers</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Influencer codes, their commission and payouts.</p>
+          <Link href="/admin/influencers" className="mt-3 inline-block text-sm font-semibold underline underline-offset-4">
+            Manage influencers →
+          </Link>
+        </section>
       </div>
     </div>
   );

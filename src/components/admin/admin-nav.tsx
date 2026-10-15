@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 
 // mobileLabel keeps all seven items on one row of a 375px phone's bottom bar; links without
-// one are sidebar-only (on a phone, Shipping Labels is a tab on the Orders page and Coupons is
-// linked from Settings).
+// one are sidebar-only (on a phone, Shipping Labels is a tab on the Orders page, and Coupons
+// and Influencers are linked from Settings).
 export const ADMIN_NAV_LINKS: { href: string; label: string; mobileLabel?: string; icon: string }[] = [
   { href: "/admin", label: "Dashboard", mobileLabel: "Home", icon: "📊" },
   { href: "/admin/products", label: "Products", mobileLabel: "Products", icon: "👕" },
@@ -16,6 +16,7 @@ export const ADMIN_NAV_LINKS: { href: string; label: string; mobileLabel?: strin
   { href: "/admin/shipping", label: "Shipping Labels", icon: "🏷️" },
   { href: "/admin/customers", label: "Customers", mobileLabel: "Buyers", icon: "👤" },
   { href: "/admin/coupons", label: "Coupons", icon: "🎟️" },
+  { href: "/admin/influencers", label: "Influencers", icon: "🤝" },
   { href: "/admin/settings", label: "Settings", mobileLabel: "Settings", icon: "⚙️" },
 ];
 
@@ -61,7 +62,7 @@ export function AdminMobileNav() {
             "flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] font-semibold uppercase",
             isActive(pathname, link.href) ||
               (link.href === "/admin/orders" && isActive(pathname, "/admin/shipping")) ||
-              (link.href === "/admin/settings" && isActive(pathname, "/admin/coupons"))
+              (link.href === "/admin/settings" && (isActive(pathname, "/admin/coupons") || isActive(pathname, "/admin/influencers")))
               ? "text-foreground"
               : "text-muted-foreground"
           )}
