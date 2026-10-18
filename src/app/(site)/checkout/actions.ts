@@ -73,12 +73,14 @@ const COUPON_INVALID = "That coupon code isn't valid or has expired.";
 
 /**
  * Shows the customer what a coupon takes off before they pay. Advisory only: the database
- * checks the code again, on the real subtotal, when the order is placed.
+ * checks the code again, on the real subtotal, when the order is placed. "One use per
+ * customer" goes by the signed-in account (taken from the session here, never from the
+ * browser) and the mobile number on the order.
  */
 export async function checkCoupon(input: {
   code: string;
   subtotal: number;
-  email: string;
+  mobile: string;
 }): Promise<{ error?: string; coupon?: AppliedCoupon }> {
   const code = normalizeCouponCode(input.code ?? "");
   if (!COUPON_CODE_PATTERN.test(code)) return { error: COUPON_INVALID };
@@ -92,12 +94,23 @@ export async function checkCoupon(input: {
   const subtotal = Number(input.subtotal);
   if (!Number.isFinite(subtotal) || subtotal < 0) return { error: COUPON_INVALID };
 
-  const { data, error } = await createAdminClient().rpc("coupon_check", {
+  const admin = createAdminClient();
+  let { data, error } = await admin.rpc("coupon_check", {
     p_code: code,
     p_subtotal: subtotal,
-    p_email: (input.email || user.email || "").trim(),
+    p_auth_user_id: user.id,
+    p_mobile: (input.mobile ?? "").trim(),
     p_lock: false,
   });
+  // A database that hasn't run 0021_account_safe_checkout.sql yet still has the email version.
+  if (error?.code === "PGRST202") {
+    ({ data, error } = await admin.rpc("coupon_check", {
+      p_code: code,
+      p_subtotal: subtotal,
+      p_email: (user.email ?? "").trim(),
+      p_lock: false,
+    }));
+  }
   if (error) {
     const message = couponErrorMessage(error.message);
     if (!message) console.error("coupon_check failed:", error);
