@@ -160,7 +160,7 @@ export function CheckoutFlow({
     setCheckingCoupon(true);
     setCouponError(null);
     try {
-      const result = await checkCoupon({ code: couponInput, subtotal, email: form.email });
+      const result = await checkCoupon({ code: couponInput, subtotal, mobile: form.mobileNumber });
       if (result.coupon) {
         setCoupon(result.coupon);
         setCouponInput("");
