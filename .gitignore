@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Source frames for the home page 360° tee; the site uses the prepared copies in
+# public/images/tee-360 (scripts/build-tee-frames.mjs)
+/public/images/3DAnimatedFrames/

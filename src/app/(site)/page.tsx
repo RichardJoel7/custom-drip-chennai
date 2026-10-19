@@ -5,6 +5,7 @@ import Link from "next/link";
 import { StudioBannerSlide } from "@/components/custom/studio-hero";
 import { JsonLd } from "@/components/seo/json-ld";
 import { HeroCarousel, type HeroSlide } from "@/components/home/hero-carousel";
+import { Tee360Story } from "@/components/home/tee-360-story";
 import { ProductGrid } from "@/components/products/product-grid";
 import { studioHeroData } from "@/lib/custom/studio-hero";
 import { businessSchema } from "@/lib/seo/schema";
@@ -74,22 +75,8 @@ export default async function HomePage() {
         <ProductGrid products={products} />
       </section>
 
-      {/* WHY CUSTOM DRIP CHENNAI */}
-      <section className="border-y border-border bg-muted">
-        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
-          <h2 className="font-display text-3xl tracking-wide sm:text-4xl">
-            WHY CUSTOM DRIP CHENNAI
-          </h2>
-          <div className="mt-8 grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
-            {WHY_US.map((item) => (
-              <div key={item.title}>
-                <p className="font-display text-lg tracking-wide">{item.title}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* WHY CUSTOM DRIP CHENNAI — the tee turns 360° as you scroll */}
+      <Tee360Story />
 
       {/* CUSTOM PRINTING IN CHENNAI — what people search for */}
       <section className="mx-auto max-w-6xl px-4 pt-16 sm:px-6">
@@ -137,11 +124,3 @@ export default async function HomePage() {
     </div>
   );
 }
-
-const WHY_US = [
-  { title: "Original Designs", description: "Every print is designed in-house." },
-  { title: "Quality Prints", description: "Durable, wash-tested prints." },
-  { title: "Made to Order", description: "Printed fresh for every drop." },
-  { title: "Chennai Based", description: "Small brand, big drip." },
-  { title: "Pan India Shipping", description: "Delivered to your doorstep." },
-];
