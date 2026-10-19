@@ -44,3 +44,7 @@ next-env.d.ts
 # Source frames for the home page 360° tee; the site uses the prepared copies in
 # public/images/tee-360 (scripts/build-tee-frames.mjs)
 /public/images/3DAnimatedFrames/
+
+# Review screenshots as received: they show customers' names and numbers, so they stay out of git
+# and off the site. scripts/build-reviews.mjs makes the blurred copies the site uses.
+/review-screenshots/

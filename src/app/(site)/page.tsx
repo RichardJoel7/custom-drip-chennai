@@ -5,6 +5,7 @@ import Link from "next/link";
 import { StudioBannerSlide } from "@/components/custom/studio-hero";
 import { JsonLd } from "@/components/seo/json-ld";
 import { HeroCarousel, type HeroSlide } from "@/components/home/hero-carousel";
+import { ReviewGallery } from "@/components/home/review-gallery";
 import { Tee360Story } from "@/components/home/tee-360-story";
 import { ProductGrid } from "@/components/products/product-grid";
 import { studioHeroData } from "@/lib/custom/studio-hero";
@@ -12,6 +13,8 @@ import { businessSchema } from "@/lib/seo/schema";
 import { getCustomCatalog } from "@/services/custom-studio";
 import { getFeaturedProducts } from "@/services/products";
 import { getSettings } from "@/services/settings";
+// Prepared from review-screenshots/ by scripts/build-reviews.mjs (runs before `npm run dev` / `build`).
+import reviewGallery from "@/lib/reviews/reviews.json";
 // Static imports get content-hashed URLs, so replacing a file never serves a stale cached copy.
 import heroShop from "../../../public/images/hero-1.jpeg";
 import heroShopMobile from "../../../public/images/mobile-hero-shop.jpeg";
@@ -74,6 +77,9 @@ export default async function HomePage() {
         </div>
         <ProductGrid products={products} />
       </section>
+
+      {/* REVIEWS — customers' messages and photos as a fan of cards; tap one to open it */}
+      <ReviewGallery reviews={reviewGallery.reviews} />
 
       {/* WHY CUSTOM DRIP CHENNAI — the tee turns 360° as you scroll */}
       <Tee360Story />
