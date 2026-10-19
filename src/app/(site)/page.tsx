@@ -78,11 +78,11 @@ export default async function HomePage() {
         <ProductGrid products={products} />
       </section>
 
-      {/* WHY CUSTOM DRIP CHENNAI — the tee turns 360° as you scroll */}
-      <Tee360Story />
-
       {/* REVIEWS — customers' messages and photos as a fan of cards; tap one to open it */}
       <ReviewGallery reviews={reviewGallery.reviews} />
+
+      {/* WHY CUSTOM DRIP CHENNAI — the tee turns 360° as you scroll */}
+      <Tee360Story />
 
       {/* CUSTOM PRINTING IN CHENNAI — what people search for */}
       <section className="mx-auto max-w-6xl px-4 pt-16 sm:px-6">

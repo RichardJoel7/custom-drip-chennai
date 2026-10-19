@@ -312,7 +312,7 @@ export function ReviewGallery({ reviews }: { reviews: ReviewImage[] }) {
             Reviews
           </p>
           <h2 id="reviews-title" className="mt-4 font-display text-3xl tracking-wide sm:text-4xl">
-            STRAIGHT FROM THE DMS
+            STRAIGHT FROM OUR COMMUNITY
           </h2>
         </div>
         <div className="flex items-center gap-3">
