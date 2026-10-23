@@ -18,6 +18,7 @@ import { useAuth } from "@/components/auth/auth-context";
 import { BUY_NOW_CHECKOUT, setBuyNowItem } from "@/components/cart/buy-now";
 import { useCart } from "@/components/cart/cart-context";
 import { DesignHubDialog, type HubTab } from "@/components/custom/design-hub-dialog";
+import { FinalPreviewDialog } from "@/components/custom/final-preview-dialog";
 import { GarmentMockup, type MockupEditor, type MockupPrint } from "@/components/custom/garment-mockup";
 import { Button } from "@/components/ui/button";
 import {
@@ -306,6 +307,8 @@ export function CustomStudio({
     init.choosingFor ? sideOfKey(init.choosingFor) : init.prints[0]?.side ?? "front"
   );
   const [showGuide, setShowGuide] = useState(true);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const closePreview = useCallback(() => setPreviewOpen(false), []);
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [hub, setHub] = useState<{ key: string; tab: HubTab } | null>(() =>
     init.choosingFor ? { key: init.choosingFor, tab: "uploads" } : null
@@ -925,6 +928,16 @@ export function CustomStudio({
                   </button>
                 );
               })}
+              {/* the finished piece, front and back, without the print-area lines */}
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                onClick={() => setPreviewOpen(true)}
+                className="relative flex-none rounded-2xl border border-accent bg-accent px-3.5 py-1.5 text-left text-accent-foreground transition-opacity hover:opacity-90"
+              >
+                <span className="block text-[10px] font-semibold uppercase tracking-wide text-accent-foreground/70">Preview</span>
+                <span className="block text-xs font-semibold">See it</span>
+              </button>
             </div>
           )}
         </div>
@@ -1283,6 +1296,21 @@ export function CustomStudio({
           onUploaded={addUpload}
           onSignIn={signInToUpload}
           onClose={closeHub}
+        />
+      )}
+
+      {previewOpen && (
+        <FinalPreviewDialog
+          initialSide={view}
+          render={(side) => mockupFor(side, { guide: false, imageWidth: 1080 })}
+          details={[
+            garments.length > 1 && garment ? garment.name : null,
+            color?.name ?? null,
+            size ? `Size ${size.label}` : null,
+            gsm ? gsmLabel(gsm.gsm) : null,
+            prints.length > 0 ? `${prints.length} print${prints.length === 1 ? "" : "s"}` : null,
+          ].filter((d): d is string => d !== null)}
+          onClose={closePreview}
         />
       )}
     </>
