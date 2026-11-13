@@ -8,6 +8,23 @@ export function InstagramIcon({ className }: { className?: string }) {
   );
 }
 
+export function LinkedInIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className={className}>
+      <rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" strokeWidth="1.7" />
+      <circle cx="8.2" cy="7.9" r="1.1" fill="currentColor" />
+      <path d="M8.2 10.6V16.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M11.6 16.2v-5.6M11.6 13.1c0-1.6 1.05-2.6 2.4-2.6 1.4 0 2.2.95 2.2 2.65v3.05"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function MailIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className={className}>
