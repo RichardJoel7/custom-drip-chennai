@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { InstagramIcon, WhatsAppIcon } from "@/components/icons/social-icons";
+import { DeveloperCredit } from "@/components/layout/developer-credit";
 import { telUrl, whatsappUrl } from "@/lib/utils/contact-links";
 import type { Settings } from "@/types";
 
@@ -95,8 +96,9 @@ export function SiteFooter({ settings }: { settings: Settings }) {
           </div>
         </div>
 
-        <div className="mt-10 border-t border-background/20 pt-6 text-xs text-background/60">
-          © {new Date().getFullYear()} Custom Drip Chennai. All rights reserved.
+        <div className="mt-10 flex flex-col items-center gap-4 border-t border-background/20 pt-6 text-xs text-background/60 sm:flex-row sm:justify-between">
+          <p>© {new Date().getFullYear()} Custom Drip Chennai. All rights reserved.</p>
+          <DeveloperCredit />
         </div>
       </div>
     </footer>
